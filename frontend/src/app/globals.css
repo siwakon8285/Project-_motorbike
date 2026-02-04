@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --foreground-rgb: 15, 23, 42;
+  --background-start: 248, 250, 252;
+  --background-end: 255, 255, 255;
+  --primary: 239, 68, 68;
+  --primary-dark: 185, 28, 28;
+  --accent: 245, 158, 11;
+}
+
+@layer base {
+  * {
+    @apply border-gray-200;
+  }
+  
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    color: rgb(var(--foreground-rgb));
+    background: white; /* Simplified background */
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center px-6 py-3 border-0 text-sm font-semibold rounded-xl 
+           shadow-lg shadow-primary-500/30 focus:outline-none focus:ring-4 
+           transition-all duration-300 ease-out transform hover:-translate-y-0.5 active:translate-y-0;
+  }
+  
+  .btn-primary {
+    @apply bg-gradient-to-r from-primary-600 to-primary-500 text-white 
+           hover:from-primary-700 hover:to-primary-600 
+           focus:ring-primary-500/50 hover:shadow-primary-500/40;
+  }
+  
+  .btn-secondary {
+    @apply bg-white text-gray-700 border-2 border-gray-200
+           hover:border-primary-500 hover:text-primary-600 
+           focus:ring-gray-200 hover:shadow-lg;
+  }
+  
+  .btn-accent {
+    @apply bg-gradient-to-r from-accent-500 to-accent-400 text-white 
+           hover:from-accent-600 hover:to-accent-500 
+           focus:ring-accent-500/50 shadow-accent-500/30 hover:shadow-accent-500/40;
+  }
+  
+  .btn-ghost {
+    @apply bg-transparent text-gray-600 hover:bg-gray-100 
+           hover:text-primary-600 focus:ring-gray-200;
+  }
+
+  .input {
+    @apply block w-full px-4 py-3.5 bg-white border-2 border-gray-200 rounded-xl 
+           text-gray-900 placeholder-gray-400 
+           focus:outline-none focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10
+           transition-all duration-200 ease-out;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl shadow-soft border border-gray-100
+           hover:shadow-card transition-shadow duration-300;
+  }
+  
+  .card-hover {
+    @apply hover:-translate-y-1 transition-transform duration-300;
+  }
+
+  .glass {
+    @apply bg-white/80 backdrop-blur-xl border border-white/20;
+  }
+
+  .gradient-primary {
+    @apply bg-gradient-to-br from-primary-600 via-primary-500 to-primary-400;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold;
+  }
+  
+  .badge-primary {
+    @apply bg-primary-100 text-primary-800;
+  }
+
+  .nav-link {
+    @apply flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 font-medium
+           hover:bg-primary-50 hover:text-primary-600 transition-all duration-200;
+  }
+  
+  .nav-link-active {
+    @apply bg-primary-50 text-primary-600 font-semibold shadow-sm;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-400;
+  }
+}
