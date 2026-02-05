@@ -80,7 +80,7 @@ router.post('/register', [
       }
     );
   } catch (err) {
-    // console.error(err.message);
+    console.error(err);
     res.status(500).send('Server error');
   }
 });
@@ -93,10 +93,12 @@ router.post('/login', [
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('Login Validation Errors:', errors.array());
       return res.status(400).json({ errors: errors.array() });
     }
 
     const { email, password } = req.body;
+    console.log('Login attempt for:', email);
 
     // Check for user
     const userResult = await pool.query(
@@ -105,6 +107,7 @@ router.post('/login', [
     );
     
     if (userResult.rows.length === 0) {
+      console.log('User not found for email:', email);
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
@@ -113,6 +116,7 @@ router.post('/login', [
     // Check password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
+      console.log('Password mismatch for user:', email);
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
@@ -148,7 +152,7 @@ router.post('/login', [
       }
     );
   } catch (err) {
-    // console.error(err.message);
+    console.error(err);
     res.status(500).send('Server error');
   }
 });

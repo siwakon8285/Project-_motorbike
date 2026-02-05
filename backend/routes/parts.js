@@ -34,7 +34,7 @@ router.get('/', auth, async (req, res) => {
     const parts = await pool.query(query, params);
     res.json(parts.rows);
   } catch (err) {
-    // console.error(err.message);
+    console.error(err.message);
     res.status(500).send('Server error');
   }
 });

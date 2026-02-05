@@ -1,36 +1,34 @@
 const { Pool } = require('pg');
-const redis = require('redis');
+const { SQLitePool } = require('./db_sqlite_adapter');
 require('dotenv').config();
 
-// PostgreSQL Connection
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/motorbike_service',
-});
+let pool;
 
-pool.on('connect', () => {
-  // Connected to PostgreSQL
-});
+// Check if we should use SQLite (e.g. if DATABASE_URL is not set or explicitly requested)
+const useSqlite = process.env.USE_SQLITE === 'true' || !process.env.DATABASE_URL;
 
-pool.on('error', (err) => {
-  // PostgreSQL connection error
-});
+if (useSqlite) {
+  console.log('Using SQLite database');
+  pool = new SQLitePool({
+    connectionString: './database.sqlite'
+  });
+} else {
+  console.log('Using PostgreSQL database');
+  // PostgreSQL Connection
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/motorbike_service',
+  });
+}
 
-// Redis Connection
-// const redisClient = redis.createClient({
-//   url: process.env.REDIS_URL || 'redis://localhost:6379'
-// });
+// Add event listeners only if it's a real PG pool
+if (!useSqlite) {
+  pool.on('connect', () => {
+    // Connected to PostgreSQL
+  });
 
-// redisClient.on('connect', () => {
-//   console.log('Connected to Redis');
-// });
-
-// redisClient.on('error', (err) => {
-//   console.error('Redis connection error:', err);
-// });
-
-// // Connect Redis
-// (async () => {
-//   // await redisClient.connect();
-// })();
+  pool.on('error', (err) => {
+    // PostgreSQL connection error
+  });
+}
 
 module.exports = { pool };

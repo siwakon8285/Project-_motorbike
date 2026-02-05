@@ -8,6 +8,15 @@ dotenv.config();
 
 const app = express();
 
+// Add exit handlers
+process.on('exit', (code) => {
+  console.log(`About to exit with code: ${code}`);
+});
+process.on('SIGINT', () => {
+  console.log('Received SIGINT. Press Control-D to exit.');
+  process.exit();
+});
+
 // Request logging middleware
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
@@ -15,7 +24,7 @@ app.use((req, res, next) => {
 });
 
 // Middleware
-const allowedOrigins = ['http://localhost:3000', 'http://127.0.0.1:3000'];
+const allowedOrigins = ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5001', 'http://127.0.0.1:5001'];
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
@@ -33,7 +42,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Database Connection Test
-pool.query("SELECT NOW() as now", (err, res) => {
+pool.query("SELECT datetime('now') as now", (err, res) => {
   if (err) {
     console.error('Database Connection Error:', err);
   } else {
@@ -52,8 +61,12 @@ app.use('/api/dashboard', require('./routes/dashboard'));
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
+});
+
+server.on('error', (e) => {
+  console.error('Server Error:', e);
 });
 
 app.use((err, req, res, next) => {
