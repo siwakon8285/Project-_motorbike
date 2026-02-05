@@ -161,7 +161,19 @@ export default function Dashboard() {
 
   return (
     <ProtectedRoute>
-      <div className="space-y-6 animate-fade-in">
+      <div className="space-y-6 animate-fade-in relative min-h-screen">
+        {/* Background Image */}
+        <div 
+          className="fixed inset-0 z-0 pointer-events-none opacity-5"
+          style={{
+            backgroundImage: 'url("/images/Gemini_Generated_Image_7ak9wd7ak9wd7ak9.png")',
+            backgroundRepeat: 'no-repeat',
+            backgroundPosition: 'center',
+            backgroundSize: 'contain' 
+          }}
+        />
+        
+        <div className="relative z-10 space-y-6">
           {/* Welcome Section */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -184,7 +196,148 @@ export default function Dashboard() {
             </Link>
           </div>
 
-          {user?.role === 'customer' ? (
+          {['admin', 'mechanic'].includes(user?.role || '') ? (
+            // Admin/Mechanic Dashboard
+            <>
+              {/* Stats Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                <div className="card p-5 border-l-4 border-primary-500 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">จองวันนี้</p>
+                      <p className="text-2xl font-bold text-gray-900 mt-2">{stats?.stats?.todayBookings || 0}</p>
+                    </div>
+                    <div className="w-10 h-10 bg-primary-50 rounded-xl flex items-center justify-center shadow-sm">
+                      <Calendar className="w-5 h-5 text-primary-600" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card p-5 border-l-4 border-yellow-500 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">รอดำเนินการ</p>
+                      <p className="text-2xl font-bold text-gray-900 mt-2">{stats?.stats?.pendingBookings || 0}</p>
+                    </div>
+                    <div className="w-10 h-10 bg-yellow-50 rounded-xl flex items-center justify-center shadow-sm">
+                      <Clock className="w-5 h-5 text-yellow-600" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card p-5 border-l-4 border-green-500 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">รายได้เดือนนี้</p>
+                      <p className="text-lg font-bold text-gray-900 mt-2">{formatCurrency(stats?.stats?.monthlyRevenue || 0)}</p>
+                    </div>
+                    <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center shadow-sm">
+                      <DollarSign className="w-5 h-5 text-green-600" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card p-5 border-l-4 border-blue-500 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">ลูกค้าทั้งหมด</p>
+                      <p className="text-2xl font-bold text-gray-900 mt-2">{stats?.stats?.totalCustomers || 0}</p>
+                    </div>
+                    <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center shadow-sm">
+                      <Users className="w-5 h-5 text-blue-600" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card p-5 border-l-4 border-purple-500 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+                   <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">สินค้าใกล้หมด</p>
+                      <p className="text-2xl font-bold text-gray-900 mt-2">{stats?.stats?.lowStockItems || 0}</p>
+                    </div>
+                    <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center shadow-sm">
+                      <Package className="w-5 h-5 text-purple-600" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card p-5 border-l-4 border-teal-500 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">เติบโต</p>
+                      <p className="text-2xl font-bold text-gray-900 mt-2">+12%</p>
+                    </div>
+                    <div className="w-10 h-10 bg-teal-50 rounded-xl flex items-center justify-center shadow-sm">
+                      <TrendingUp className="w-5 h-5 text-teal-600" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recent Bookings Table */}
+              <div className="card overflow-hidden">
+                <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <Clock className="w-5 h-5 text-primary-500" />
+                    การจองล่าสุด
+                  </h3>
+                  <Link href="/admin/bookings" className="text-sm text-primary-600 hover:text-primary-700 font-medium hover:underline">
+                    ดูทั้งหมด
+                  </Link>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ลูกค้า</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">รถ</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">วันที่</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">สถานะ</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ราคา</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {stats?.recentBookings?.map((booking) => (
+                        <tr key={booking.id} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                                <Users className="w-4 h-4 text-gray-500" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">{booking.first_name} {booking.last_name}</p>
+                                <p className="text-xs text-gray-500">{booking.phone || '-'}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <Bike className="w-4 h-4 text-gray-400" />
+                              <span className="text-sm text-gray-600">{booking.vehicle_license_plate}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">
+                              {format(new Date(booking.booking_date), 'd MMM yyyy', { locale: th })}
+                            </div>
+                            <div className="text-xs text-gray-500">{booking.booking_time.slice(0, 5)} น.</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(booking.status)}`}>
+                              {getStatusText(booking.status)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {formatCurrency(booking.total_price)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          ) : (
             // Customer Dashboard
             <>
               {/* Stats Cards */}
@@ -246,130 +399,10 @@ export default function Dashboard() {
                 </div>
               </div>
             </>
-          ) : (
-            // Admin/Mechanic Dashboard
-            <>
-              {/* Stats Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-                <div className="card p-5 border-l-4 border-primary-500 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">จองวันนี้</p>
-                      <p className="text-2xl font-bold text-gray-900 mt-2">{stats?.stats?.todayBookings || 0}</p>
-                    </div>
-                    <div className="w-10 h-10 bg-primary-50 rounded-xl flex items-center justify-center shadow-sm">
-                      <Calendar className="w-5 h-5 text-primary-600" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="card p-5 border-l-4 border-yellow-500 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">รอดำเนินการ</p>
-                      <p className="text-2xl font-bold text-gray-900 mt-2">{stats?.stats?.pendingBookings || 0}</p>
-                    </div>
-                    <div className="w-10 h-10 bg-yellow-50 rounded-xl flex items-center justify-center shadow-sm">
-                      <Clock className="w-5 h-5 text-yellow-600" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="card p-5 border-l-4 border-green-500 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">รายได้เดือนนี้</p>
-                      <p className="text-lg font-bold text-gray-900 mt-2">{formatCurrency(stats?.stats?.monthlyRevenue || 0)}</p>
-                    </div>
-                    <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center shadow-sm">
-                      <DollarSign className="w-5 h-5 text-green-600" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="card p-5 border-l-4 border-blue-500 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">ลูกค้าทั้งหมด</p>
-                      <p className="text-2xl font-bold text-gray-900 mt-2">{stats?.stats?.totalCustomers || 0}</p>
-                    </div>
-                    <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center shadow-sm">
-                      <Users className="w-5 h-5 text-blue-600" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="card p-5 border-l-4 border-red-500 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">อะไหล่ใกล้หมด</p>
-                      <p className="text-2xl font-bold text-gray-900 mt-2">{stats?.stats?.lowStockItems || 0}</p>
-                    </div>
-                    <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center shadow-sm">
-                      <Package className="w-5 h-5 text-red-600" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="card p-5 border-l-4 border-purple-500 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">จองทั้งหมด</p>
-                      <p className="text-2xl font-bold text-gray-900 mt-2">{stats?.stats?.totalBookings || 0}</p>
-                    </div>
-                    <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center shadow-sm">
-                      <TrendingUp className="w-5 h-5 text-purple-600" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Recent Bookings */}
-              <div className="card hover:shadow-lg transition-all duration-300">
-                <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-gray-900">การจองล่าสุด</h3>
-                  <Link href="/bookings" prefetch={false} className="text-primary-600 hover:text-primary-700 text-sm font-medium flex items-center gap-1">
-                    ดูทั้งหมด <ArrowRight className="w-4 h-4" />
-                  </Link>
-                </div>
-                <div className="p-6">
-                  {stats?.recentBookings?.length === 0 ? (
-                    <div className="text-center py-12 text-gray-500">
-                      ยังไม่มีการจอง
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {stats?.recentBookings?.slice(0, 5).map((booking: any) => (
-                        <div key={booking.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
-                              <Users className="w-5 h-5 text-primary-600" />
-                            </div>
-                            <div>
-                              <p className="font-semibold text-gray-900">{booking.username}</p>
-                              <p className="text-sm text-gray-500">
-                                {format(new Date(booking.booking_date), 'dd MMM yyyy', { locale: th })} · {booking.booking_time.substring(0, 5)}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm font-medium text-gray-900">
-                              {formatCurrency(booking.total_price)}
-                            </span>
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(booking.status)}`}>
-                              {getStatusText(booking.status)}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </>
           )}
         </div>
-      </ProtectedRoute>
-    );
-  }
+      </div>
+    </ProtectedRoute>
+  );
+}
 

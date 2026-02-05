@@ -4,8 +4,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
-import { Package, Plus, Search, Edit, Trash2, AlertTriangle } from 'lucide-react';
+import { Package, Plus, Search, Edit, Trash2, AlertTriangle, Image as ImageIcon, Upload, X } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { io } from 'socket.io-client';
+
+const API_URL = 'http://127.0.0.1:5000';
 
 interface Part {
   id: number;
@@ -17,6 +20,8 @@ interface Part {
   selling_price: number;
   quantity: number;
   min_stock: number;
+  image_url?: string;
+  compatible_models?: string;
 }
 
 export default function Parts() {
@@ -28,15 +33,18 @@ export default function Parts() {
   const [showModal, setShowModal] = useState(false);
   const [editingPart, setEditingPart] = useState<Part | null>(null);
   const [showLowStock, setShowLowStock] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     sku: '',
     description: '',
     category: 'engine',
     supplier: '',
+    compatibleModels: '',
     sellingPrice: '',
     quantity: '',
-    minStock: '5'
+    minStock: '5',
+    image: null as File | null
   });
 
   const categories = ['engine', 'brake', 'tire', 'electrical', 'body', 'accessories', 'oil', 'filter'];
@@ -50,7 +58,7 @@ export default function Parts() {
       const res = await axios.get(url);
       setParts(res.data);
     } catch (err) {
-      toast.error('Failed to fetch parts');
+      toast.error('ไม่สามารถดึงข้อมูลอะไหล่ได้');
     } finally {
       setLoading(false);
     }
@@ -62,22 +70,78 @@ export default function Parts() {
     }
   }, [authLoading, user, fetchParts]);
 
+  // Real-time updates with Socket.IO
+  useEffect(() => {
+    const socket = io(API_URL);
+
+    socket.on('parts_update', (event: any) => {
+      if (event.type === 'create') {
+        setParts(prev => [...prev, event.data]);
+        toast.success(`เพิ่มอะไหล่ใหม่แล้ว: ${event.data.name}`);
+      } else if (event.type === 'update') {
+        setParts(prev => prev.map(p => p.id === event.data.id ? event.data : p));
+      } else if (event.type === 'delete') {
+        setParts(prev => prev.filter(p => p.id !== event.id));
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setFormData({ ...formData, image: file });
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = () => {
+    setFormData({ ...formData, image: null });
+    setImagePreview(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const data = new FormData();
+      data.append('name', formData.name);
+      data.append('sku', formData.sku);
+      data.append('description', formData.description);
+      data.append('category', formData.category);
+      data.append('supplier', formData.supplier);
+      data.append('compatibleModels', formData.compatibleModels);
+      data.append('sellingPrice', formData.sellingPrice);
+      data.append('quantity', formData.quantity);
+      data.append('minStock', formData.minStock);
+      if (formData.image) {
+        data.append('image', formData.image);
+      }
+
       if (editingPart) {
-        await axios.put(`/api/parts/${editingPart.id}`, formData);
-        toast.success('Part updated successfully');
+        await axios.put(`/api/parts/${editingPart.id}`, data, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        toast.success('อัปเดตข้อมูลอะไหล่เรียบร้อยแล้ว');
       } else {
-        await axios.post('/api/parts', formData);
-        toast.success('Part created successfully');
+        await axios.post('/api/parts', data, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        toast.success('สร้างรายการอะไหล่เรียบร้อยแล้ว');
       }
       setShowModal(false);
       setEditingPart(null);
       resetForm();
       fetchParts();
     } catch (err) {
-      toast.error('Failed to save part');
+      console.error(err);
+      toast.error('บันทึกข้อมูลไม่สำเร็จ');
     }
   };
 
@@ -89,31 +153,38 @@ export default function Parts() {
       description: part.description,
       category: part.category,
       supplier: part.supplier,
+      compatibleModels: part.compatible_models || '',
       sellingPrice: part.selling_price.toString(),
       quantity: part.quantity.toString(),
-      minStock: part.min_stock.toString()
+      minStock: part.min_stock.toString(),
+      image: null
     });
+    if (part.image_url) {
+      setImagePreview(`${API_URL}${part.image_url}`);
+    } else {
+      setImagePreview(null);
+    }
     setShowModal(true);
   };
 
   const handleDelete = async (partId: number) => {
-    if (!confirm('Are you sure you want to delete this part?')) return;
+    if (!confirm('คุณแน่ใจหรือไม่ว่าต้องการลบอะไหล่นี้?')) return;
     try {
       await axios.delete(`/api/parts/${partId}`);
-      toast.success('Part deleted successfully');
+      toast.success('ลบรายการอะไหล่เรียบร้อยแล้ว');
       fetchParts();
     } catch (err) {
-      toast.error('Failed to delete part');
+      toast.error('ลบรายการไม่สำเร็จ');
     }
   };
 
   const updateStock = async (partId: number, newStock: number) => {
     try {
       await axios.put(`/api/parts/${partId}/stock`, { quantity: newStock });
-      toast.success('Stock updated');
+      toast.success('อัปเดตสต็อกเรียบร้อยแล้ว');
       fetchParts();
     } catch (err) {
-      toast.error('Failed to update stock');
+      toast.error('อัปเดตสต็อกไม่สำเร็จ');
     }
   };
 
@@ -124,10 +195,13 @@ export default function Parts() {
       description: '',
       category: 'engine',
       supplier: '',
+      compatibleModels: '',
       sellingPrice: '',
       quantity: '',
-      minStock: '5'
+      minStock: '5',
+      image: null
     });
+    setImagePreview(null);
   };
 
   const filteredParts = parts.filter(part => {
@@ -170,8 +244,8 @@ export default function Parts() {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Parts Inventory</h1>
-              <p className="text-sm text-gray-500 mt-1">Manage spare parts and inventory</p>
+              <h1 className="text-2xl font-bold text-gray-900">คลังอะไหล่</h1>
+              <p className="text-sm text-gray-500 mt-1">จัดการอะไหล่และคลังสินค้า</p>
             </div>
             <div className="flex space-x-3">
               <button
@@ -183,7 +257,7 @@ export default function Parts() {
                 }`}
               >
                 <AlertTriangle className="w-4 h-4 mr-2" />
-                {showLowStock ? 'Show All' : 'Low Stock'}
+                {showLowStock ? 'แสดงทั้งหมด' : 'สินค้าใกล้หมด'}
               </button>
               {user?.role === 'admin' && (
                 <button
@@ -195,7 +269,7 @@ export default function Parts() {
                   className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700"
                 >
                   <Plus className="w-4 h-4 mr-2" />
-                  Add Part
+                  เพิ่มอะไหล่
                 </button>
               )}
             </div>
@@ -207,7 +281,7 @@ export default function Parts() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="text"
-                placeholder="Search parts by name, SKU, or supplier..."
+                placeholder="ค้นหาอะไหล่ด้วยชื่อ, รหัสสินค้า, หรือผู้ผลิต..."
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -218,7 +292,7 @@ export default function Parts() {
               onChange={(e) => setSelectedCategory(e.target.value)}
               className="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
-              <option value="">All Categories</option>
+              <option value="">หมวดหมู่ทั้งหมด</option>
               {categories.map(cat => (
                 <option key={cat} value={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
               ))}
@@ -230,11 +304,11 @@ export default function Parts() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Part</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">อะไหล่</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">หมวดหมู่</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สต็อก</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ราคา</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -242,12 +316,24 @@ export default function Parts() {
                   <tr key={part.id} className={isLowStock(part) ? 'bg-red-50' : ''}>
                     <td className="px-6 py-4">
                       <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10 rounded-lg bg-gray-100 flex items-center justify-center">
-                          <Package className="h-5 w-5 text-gray-500" />
+                        <div className="flex-shrink-0 h-16 w-16 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden border border-gray-200">
+                          {part.image_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img 
+                              src={`${API_URL}${part.image_url}`} 
+                              alt={part.name}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <Package className="h-8 w-8 text-gray-400" />
+                          )}
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900">{part.name}</div>
                           <div className="text-sm text-gray-500">{part.sku} • {part.supplier}</div>
+                          {part.compatible_models && (
+                            <div className="text-xs text-primary-600 mt-1">รุ่นที่รองรับ: {part.compatible_models}</div>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -305,7 +391,7 @@ export default function Parts() {
             {filteredParts.length === 0 && (
               <div className="text-center py-12">
                 <Package className="w-12 h-12 mx-auto text-gray-300" />
-                <p className="mt-4 text-gray-500">No parts found</p>
+                <p className="mt-4 text-gray-500">ไม่พบข้อมูลอะไหล่</p>
               </div>
             )}
           </div>
@@ -318,12 +404,48 @@ export default function Parts() {
               <div className="fixed inset-0 bg-gray-500 bg-opacity-75" onClick={() => setShowModal(false)}></div>
               <div className="relative bg-white rounded-lg max-w-lg w-full p-6 max-h-screen overflow-y-auto">
                 <h2 className="text-xl font-bold text-gray-900 mb-4">
-                  {editingPart ? 'Edit Part' : 'Add New Part'}
+                  {editingPart ? 'แก้ไขข้อมูลอะไหล่' : 'เพิ่มอะไหล่ใหม่'}
                 </h2>
                 <form onSubmit={handleSubmit} className="space-y-4">
+                  {/* Image Upload */}
+                  <div className="flex justify-center mb-6">
+                    <div className="relative">
+                      <div className="h-32 w-32 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden border-2 border-dashed border-gray-300 hover:border-primary-500 transition-colors">
+                        {imagePreview ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img 
+                            src={imagePreview} 
+                            alt="Preview" 
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="text-center p-2">
+                            <ImageIcon className="h-8 w-8 mx-auto text-gray-400" />
+                            <span className="text-xs text-gray-500 block mt-1">อัปโหลดรูปภาพ</span>
+                          </div>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          onChange={handleFileChange}
+                        />
+                      </div>
+                      {imagePreview && (
+                        <button
+                          type="button"
+                          onClick={removeImage}
+                          className="absolute -top-2 -right-2 bg-red-100 text-red-600 rounded-full p-1 hover:bg-red-200 shadow-sm"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Part SKU</label>
+                      <label className="block text-sm font-medium text-gray-700">รหัสสินค้า (SKU)</label>
                       <input
                         type="text"
                         required
@@ -333,7 +455,7 @@ export default function Parts() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Supplier</label>
+                      <label className="block text-sm font-medium text-gray-700">ผู้จัดจำหน่าย</label>
                       <input
                         type="text"
                         className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -343,7 +465,7 @@ export default function Parts() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Name</label>
+                    <label className="block text-sm font-medium text-gray-700">ชื่ออะไหล่</label>
                     <input
                       type="text"
                       required
@@ -353,7 +475,7 @@ export default function Parts() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Description</label>
+                    <label className="block text-sm font-medium text-gray-700">รายละเอียด</label>
                     <textarea
                       rows={2}
                       className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -361,9 +483,19 @@ export default function Parts() {
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">รุ่นที่รองรับ (ระบุหลายรุ่นได้โดยใช้เครื่องหมายจุลภาค ,)</label>
+                    <input
+                      type="text"
+                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      placeholder="เช่น Wave 110i, Click 125i, PCX 160"
+                      value={formData.compatibleModels}
+                      onChange={(e) => setFormData({ ...formData, compatibleModels: e.target.value })}
+                    />
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Category</label>
+                      <label className="block text-sm font-medium text-gray-700">หมวดหมู่</label>
                       <select
                         className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
                         value={formData.category}
@@ -375,7 +507,7 @@ export default function Parts() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Price (฿)</label>
+                      <label className="block text-sm font-medium text-gray-700">ราคาขาย (฿)</label>
                       <input
                         type="number"
                         required
@@ -388,7 +520,7 @@ export default function Parts() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Stock</label>
+                      <label className="block text-sm font-medium text-gray-700">จำนวนสต็อก</label>
                       <input
                         type="number"
                         required
@@ -399,7 +531,7 @@ export default function Parts() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Min Stock</label>
+                      <label className="block text-sm font-medium text-gray-700">แจ้งเตือนเมื่อต่ำกว่า</label>
                       <input
                         type="number"
                         required
@@ -416,13 +548,13 @@ export default function Parts() {
                       onClick={() => setShowModal(false)}
                       className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
                     >
-                      Cancel
+                      ยกเลิก
                     </button>
                     <button
                       type="submit"
                       className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
                     >
-                      {editingPart ? 'Update' : 'Create'}
+                      {editingPart ? 'บันทึกแก้ไข' : 'ยืนยันการสร้าง'}
                     </button>
                   </div>
                 </form>

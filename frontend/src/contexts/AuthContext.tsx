@@ -70,6 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('Auth initialization error:', err);
         setUser(null);
       } finally {
+        clearTimeout(safetyTimer);
         setLoading(false);
       }
     };

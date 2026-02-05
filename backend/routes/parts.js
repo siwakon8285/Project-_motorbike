@@ -2,8 +2,41 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { pool } = require('../config/db');
 const auth = require('../middleware/auth');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 const router = express.Router();
+
+// Configure Multer for image upload
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(__dirname, '../uploads');
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    cb(null, 'part-' + Date.now() + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: function (req, file, cb) {
+    const filetypes = /jpeg|jpg|png|webp/;
+    const mimetype = filetypes.test(file.mimetype);
+    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+    
+    if (mimetype && extname) {
+      return cb(null, true);
+    }
+    cb(new Error('Only image files are allowed!'));
+  }
+});
 
 // Get all parts
 router.get('/', auth, async (req, res) => {
@@ -56,7 +89,7 @@ router.get('/:id', auth, async (req, res) => {
 });
 
 // Create part (admin/mechanic only)
-router.post('/', auth, [
+router.post('/', auth, upload.single('image'), [
   body('name').notEmpty().withMessage('Part name is required'),
   body('quantity').isInt({ min: 0 }).withMessage('Valid quantity is required'),
   body('sellingPrice').isFloat({ min: 0 }).withMessage('Valid selling price is required')
@@ -80,14 +113,20 @@ router.post('/', auth, [
       minStock, 
       costPrice, 
       sellingPrice, 
-      supplier 
+      supplier,
+      compatibleModels
     } = req.body;
 
+    const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
+
     const newPart = await pool.query(
-      `INSERT INTO parts (name, category, description, sku, quantity, min_stock, cost_price, selling_price, supplier) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [name, category, description, sku, quantity, minStock || 10, costPrice, sellingPrice, supplier]
+      `INSERT INTO parts (name, category, description, sku, quantity, min_stock, cost_price, selling_price, supplier, compatible_models, image_url) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+      [name, category, description, sku, quantity, minStock || 10, costPrice, sellingPrice, supplier, compatibleModels, imageUrl]
     );
+
+    // Emit socket event
+    req.io.emit('parts_update', { type: 'create', data: newPart.rows[0] });
 
     res.json(newPart.rows[0]);
   } catch (err) {
@@ -97,7 +136,7 @@ router.post('/', auth, [
 });
 
 // Update part
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', auth, upload.single('image'), async (req, res) => {
   try {
     if (req.user.role === 'customer') {
       return res.status(403).json({ message: 'Access denied' });
@@ -112,103 +151,71 @@ router.put('/:id', auth, async (req, res) => {
       minStock, 
       costPrice, 
       sellingPrice, 
-      supplier 
+      supplier,
+      compatibleModels
     } = req.body;
 
-    const updateResult = await pool.query(
-      `UPDATE parts SET 
-        name = COALESCE($1, name),
-        category = COALESCE($2, category),
-        description = COALESCE($3, description),
-        sku = COALESCE($4, sku),
-        quantity = COALESCE($5, quantity),
-        min_stock = COALESCE($6, min_stock),
-        cost_price = COALESCE($7, cost_price),
-        selling_price = COALESCE($8, selling_price),
-        supplier = COALESCE($9, supplier),
-        updated_at = CURRENT_TIMESTAMP
-       WHERE id = $10 RETURNING *`,
-      [name, category, description, sku, quantity, minStock, costPrice, sellingPrice, supplier, req.params.id]
-    );
+    let imageUrl = null;
+    if (req.file) {
+      imageUrl = `/uploads/${req.file.filename}`;
+    }
 
-    if (updateResult.rows.length === 0) {
+    // Build update query dynamically based on provided fields
+    let updateQuery = 'UPDATE parts SET ';
+    const params = [];
+    let paramIndex = 1;
+
+    if (name) { updateQuery += `name = $${paramIndex}, `; params.push(name); paramIndex++; }
+    if (category) { updateQuery += `category = $${paramIndex}, `; params.push(category); paramIndex++; }
+    if (description) { updateQuery += `description = $${paramIndex}, `; params.push(description); paramIndex++; }
+    if (sku) { updateQuery += `sku = $${paramIndex}, `; params.push(sku); paramIndex++; }
+    if (quantity) { updateQuery += `quantity = $${paramIndex}, `; params.push(quantity); paramIndex++; }
+    if (minStock) { updateQuery += `min_stock = $${paramIndex}, `; params.push(minStock); paramIndex++; }
+    if (costPrice) { updateQuery += `cost_price = $${paramIndex}, `; params.push(costPrice); paramIndex++; }
+    if (sellingPrice) { updateQuery += `selling_price = $${paramIndex}, `; params.push(sellingPrice); paramIndex++; }
+    if (supplier) { updateQuery += `supplier = $${paramIndex}, `; params.push(supplier); paramIndex++; }
+    if (compatibleModels) { updateQuery += `compatible_models = $${paramIndex}, `; params.push(compatibleModels); paramIndex++; }
+    if (imageUrl) { updateQuery += `image_url = $${paramIndex}, `; params.push(imageUrl); paramIndex++; }
+
+    // Remove trailing comma and space
+    updateQuery = updateQuery.slice(0, -2);
+    
+    updateQuery += ` WHERE id = $${paramIndex} RETURNING *`;
+    params.push(req.params.id);
+
+    const updatedPart = await pool.query(updateQuery, params);
+
+    if (updatedPart.rows.length === 0) {
       return res.status(404).json({ message: 'Part not found' });
     }
 
-    res.json(updateResult.rows[0]);
+    // Emit socket event
+    req.io.emit('parts_update', { type: 'update', data: updatedPart.rows[0] });
+
+    res.json(updatedPart.rows[0]);
   } catch (err) {
     // console.error(err.message);
     res.status(500).send('Server error');
   }
 });
 
-// Update stock quantity
-router.patch('/:id/stock', auth, [
-  body('quantity').isInt().withMessage('Valid quantity is required')
-], async (req, res) => {
+// Delete part
+router.delete('/:id', auth, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
     if (req.user.role === 'customer') {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    const { quantity } = req.body;
-
-    const updateResult = await pool.query(
-      'UPDATE parts SET quantity = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
-      [quantity, req.params.id]
-    );
-
-    if (updateResult.rows.length === 0) {
-      return res.status(404).json({ message: 'Part not found' });
-    }
-
-    res.json(updateResult.rows[0]);
-  } catch (err) {
-    // console.error(err.message);
-    res.status(500).send('Server error');
-  }
-});
-
-// Delete part (admin only)
-router.delete('/:id', auth, async (req, res) => {
-  try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Admin access required' });
-    }
-
-    const deleteResult = await pool.query(
-      'DELETE FROM parts WHERE id = $1 RETURNING id',
-      [req.params.id]
-    );
+    const deleteResult = await pool.query('DELETE FROM parts WHERE id = $1 RETURNING *', [req.params.id]);
 
     if (deleteResult.rows.length === 0) {
       return res.status(404).json({ message: 'Part not found' });
     }
 
-    res.json({ message: 'Part deleted successfully' });
-  } catch (err) {
-    // console.error(err.message);
-    res.status(500).send('Server error');
-  }
-});
+    // Emit socket event
+    req.io.emit('parts_update', { type: 'delete', id: parseInt(req.params.id) });
 
-// Get low stock parts
-router.get('/alerts/low-stock', auth, async (req, res) => {
-  try {
-    if (req.user.role === 'customer') {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
-    const parts = await pool.query(
-      'SELECT * FROM parts WHERE quantity <= min_stock ORDER BY quantity ASC'
-    );
-
-    res.json(parts.rows);
+    res.json({ message: 'Part deleted' });
   } catch (err) {
     // console.error(err.message);
     res.status(500).send('Server error');

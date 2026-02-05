@@ -4,28 +4,29 @@
   "description": "Motorbike Service Management System",
   "main": "backend/server.js",
   "scripts": {
-  "dev": "concurrently \"npm run server\" \"npm run client\"",
-  "server": "nodemon backend/server.js",
-  "client": "cd frontend && npm run dev",
-  "build": "cd frontend && npm run build",
-  "install-deps": "npm install && cd frontend && npm install",
-  "start": "node backend/server.js"
-},
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "nodemon backend/server.js",
+    "client": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "install-deps": "npm install && cd frontend && npm install",
+    "start": "node backend/server.js"
+  },
   "dependencies": {
-    "express": "^4.18.2",
-    "pg": "^8.11.3",
-    "redis": "^4.6.10",
     "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "nodemailer": "^7.0.13",
-    "multer": "^2.0.1",
+    "express": "^4.18.2",
     "express-validator": "^7.0.1",
-    "moment": "^2.29.4"
+    "jsonwebtoken": "^9.0.2",
+    "moment": "^2.29.4",
+    "multer": "^2.0.2",
+    "nodemailer": "^7.0.13",
+    "pg": "^8.11.3",
+    "redis": "^4.6.10",
+    "socket.io": "^4.8.3"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1",
-    "concurrently": "^8.2.0"
+    "concurrently": "^8.2.0",
+    "nodemon": "^3.0.1"
   }
 }

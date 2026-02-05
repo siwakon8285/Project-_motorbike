@@ -6,6 +6,7 @@ import { Search, ShoppingCart, Wrench, Info, Check } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
+import { io } from 'socket.io-client';
 
 interface Part {
   id: number;
@@ -28,6 +29,22 @@ export default function EstimatePage() {
   const [loading, setLoading] = useState(false);
   const [debouncedModel, setDebouncedModel] = useState('');
   const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({});
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
+  // Real-time updates
+  useEffect(() => {
+    const socket = io(API_URL);
+
+    socket.on('parts_update', () => {
+      setRefreshTrigger(prev => prev + 1);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [API_URL]);
 
   // Debounce search
   useEffect(() => {
@@ -56,7 +73,7 @@ export default function EstimatePage() {
     };
 
     fetchParts();
-  }, [debouncedModel]);
+  }, [debouncedModel, refreshTrigger]);
 
   const togglePart = (part: Part) => {
     setSelectedParts(prev => {
@@ -160,7 +177,7 @@ export default function EstimatePage() {
                   <div className="relative w-full h-48 mb-4 bg-gray-100 rounded-xl overflow-hidden">
                     {!imageErrors[part.id] && part.image_url ? (
                       <img 
-                        src={part.image_url} 
+                        src={`${API_URL}${part.image_url}`} 
                         alt={part.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         onError={() => handleImageError(part.id)}

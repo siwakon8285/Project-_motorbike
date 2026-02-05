@@ -192,7 +192,7 @@ export default function Notifications() {
                         </div>
                         {notification.related_booking_id && (
                           <Link
-                            href={`/bookings/${notification.related_booking_id}`}
+                            href="/history"
                             prefetch={false}
                             className="inline-flex items-center mt-3 text-sm text-primary-600 hover:text-primary-500"
                           >

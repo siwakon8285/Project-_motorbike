@@ -13,10 +13,10 @@ import {
   LogOut,
   Menu,
   X,
-  Bike,
   ChevronRight,
   ChevronLeft,
-  Calculator
+  Calculator,
+  ClipboardList
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -30,6 +30,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { name: 'แดชบอร์ด', href: '/dashboard', icon: LayoutDashboard, description: 'ภาพรวมระบบ' },
     { name: 'จองคิว', href: '/bookings/new', icon: Calendar, description: 'จองคิวซ่อมใหม่' },
     { name: 'ประเมินราคา', href: '/estimate', icon: Calculator, description: 'เช็คราคาอะไหล่' },
+    ...(user?.role === 'admin' ? [{ name: 'จัดการการจอง', href: '/admin/bookings', icon: ClipboardList, description: 'จัดการการจองทั้งหมด' }] : []),
     ...(user?.role !== 'customer' ? [{ name: 'อะไหล่', href: '/parts', icon: Package, description: 'คลังอะไหล่' }] : []),
     { name: 'ประวัติ', href: '/history', icon: History, description: 'ประวัติการซ่อม' },
   ];
@@ -64,8 +65,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {/* Logo Header */}
         <div className={`flex items-center h-20 bg-gradient-to-r from-primary-600 to-primary-500 transition-all duration-300 ${isCollapsed ? 'justify-center px-0' : 'justify-between px-6'}`}>
           <Link href="/dashboard" className={`flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`} prefetch={false}>
-            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shrink-0">
-              <Bike className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shrink-0 overflow-hidden">
+              <img src="/images/Gemini_Generated_Image_7ak9wd7ak9wd7ak9.png" alt="MotoService Logo" className="w-full h-full object-cover" />
             </div>
             <div className={`transition-all duration-300 overflow-hidden ${isCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
               <span className="text-xl font-bold text-white whitespace-nowrap">MotoService</span>

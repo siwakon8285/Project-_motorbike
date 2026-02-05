@@ -12,6 +12,7 @@ router.get('/', auth, async (req, res) => {
     let query = `
       SELECT b.*, u.username, u.email, u.first_name, u.last_name,
              v.brand as vehicle_brand, v.model as vehicle_model, v.license_plate as vehicle_license_plate,
+             v.color as vehicle_color, v.year as vehicle_year,
              json_agg(json_build_object(
                'id', s.id, 'name', s.name, 'price', s.price
              )) FILTER (WHERE s.id IS NOT NULL) as services
@@ -43,7 +44,7 @@ router.get('/', auth, async (req, res) => {
       paramIndex++;
     }
 
-    query += ` GROUP BY b.id, u.username, u.email, u.first_name, u.last_name, v.brand, v.model, v.license_plate ORDER BY b.booking_date DESC, b.booking_time DESC`;
+    query += ` GROUP BY b.id, u.username, u.email, u.first_name, u.last_name, v.brand, v.model, v.license_plate, v.color, v.year ORDER BY b.booking_date DESC, b.booking_time DESC`;
 
     const bookings = await pool.query(query, params);
     res.json(bookings.rows);
@@ -59,13 +60,14 @@ router.get('/my-bookings', auth, async (req, res) => {
     const query = `
       SELECT b.*, 
              v.brand as vehicle_brand, v.model as vehicle_model, v.license_plate as vehicle_license_plate,
+             v.color as vehicle_color, v.year as vehicle_year,
              json_agg(json_build_object('id', s.id, 'name', s.name, 'price', s.price)) FILTER (WHERE s.id IS NOT NULL) as services
       FROM bookings b
       LEFT JOIN vehicles v ON b.vehicle_id = v.id
       LEFT JOIN booking_services bs ON b.id = bs.booking_id
       LEFT JOIN services s ON bs.service_id = s.id
       WHERE b.user_id = $1
-      GROUP BY b.id, v.brand, v.model, v.license_plate
+      GROUP BY b.id, v.brand, v.model, v.license_plate, v.color, v.year
       ORDER BY b.booking_date DESC, b.booking_time DESC
     `;
     
@@ -129,8 +131,8 @@ router.post('/', auth, [
     if (!finalVehicleId && vehicle) {
       // Create new vehicle
       const newVehicle = await pool.query(
-        'INSERT INTO vehicles (user_id, brand, model, year, license_plate) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-        [req.user.id, vehicle.brand, vehicle.model, vehicle.year, vehicle.licensePlate]
+        'INSERT INTO vehicles (user_id, brand, model, year, license_plate, color) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+        [req.user.id, vehicle.brand, vehicle.model, vehicle.year, vehicle.licensePlate, vehicle.color]
       );
       finalVehicleId = newVehicle.rows[0].id;
     }

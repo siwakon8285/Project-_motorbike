@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { format, addDays, isSameDay } from 'date-fns';
 import { th } from 'date-fns/locale';
-import { Check } from 'lucide-react';
+import { Check, Calendar, Clock, Car, FileText } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 
@@ -22,9 +22,11 @@ export default function NewBooking() {
     brand: '',
     model: '',
     year: new Date().getFullYear(),
-    licensePlate: ''
+    licensePlate: '',
+    color: ''
   });
   const [notes, setNotes] = useState('');
+  const [estimateDetails, setEstimateDetails] = useState<string>('');
   const [estimatedPrice, setEstimatedPrice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
@@ -35,7 +37,11 @@ export default function NewBooking() {
     const priceParam = searchParams.get('estimatedPrice');
     
     if (noteParam) {
-      setNotes(noteParam);
+      if (noteParam.includes('รายการอะไหล่ที่เลือกประเมินราคา')) {
+        setEstimateDetails(noteParam);
+      } else {
+        setNotes(noteParam);
+      }
     }
     
     if (modelParam) {
@@ -91,10 +97,10 @@ export default function NewBooking() {
         serviceIds: selectedServices,
         bookingDate: format(selectedDate, 'yyyy-MM-dd'),
         bookingTime: selectedTime,
-        notes
+        notes: estimateDetails ? `${estimateDetails}\n\nหมายเหตุเพิ่มเติม:\n${notes}` : notes
       });
-      toast.success('จองคิวสำเร็จ!');
-      router.push('/bookings');
+      toast.success(`จองคิวสำเร็จ! วันที่ ${format(selectedDate, 'd MMM yyyy', { locale: th })}`);
+      router.push('/history');
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'ไม่สามารถสร้างการจองได้');
     } finally {
@@ -102,7 +108,7 @@ export default function NewBooking() {
     }
   };
 
-  const weekDays = Array.from({ length: 14 }, (_, i) => addDays(new Date(), i));
+  const weekDays = Array.from({ length: 30 }, (_, i) => addDays(new Date(), i));
   
   const handleNextStep = () => {
     if (step === 1) {
@@ -214,7 +220,10 @@ export default function NewBooking() {
           {step === 2 && (
             <div className="space-y-6">
               <div className="bg-white rounded-lg shadow p-6">
-                <h2 className="text-lg font-medium text-gray-900 mb-4">ข้อมูลยานพาหนะ</h2>
+                <div className="flex items-center gap-2 mb-4">
+                  <Car className="w-5 h-5 text-primary-600" />
+                  <h2 className="text-lg font-medium text-gray-900">ข้อมูลยานพาหนะ</h2>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">ยี่ห้อ</label>
@@ -246,6 +255,16 @@ export default function NewBooking() {
                     />
                   </div>
                   <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">สีรถ</label>
+                    <input
+                      type="text"
+                      value={vehicle.color}
+                      onChange={(e) => setVehicle({ ...vehicle, color: e.target.value })}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      placeholder="เช่น ดำ, แดง"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">ทะเบียนรถ</label>
                     <input
                       type="text"
@@ -258,6 +277,37 @@ export default function NewBooking() {
                 </div>
               </div>
 
+              {estimateDetails && (
+                <div className="bg-white rounded-lg shadow overflow-hidden">
+                  <div className="bg-blue-50 px-6 py-4 border-b border-blue-100">
+                    <h3 className="text-blue-900 font-medium flex items-center gap-2">
+                      <FileText className="w-5 h-5" /> รายการอะไหล่ที่ประเมินไว้
+                    </h3>
+                  </div>
+                  <div className="p-6">
+                    <div className="space-y-4">
+                      {estimateDetails.split('|').map((part, index) => {
+                        const trimmed = part.trim();
+                        if (!trimmed) return null;
+                        if (trimmed.startsWith('รายการอะไหล่')) {
+                           const content = trimmed.replace('รายการอะไหล่ที่เลือกประเมินราคา:', '').trim();
+                           return (
+                             <div key={index}>
+                               <p className="text-sm text-gray-500 mb-1">รายการอะไหล่</p>
+                               <p className="text-gray-900 font-medium">{content}</p>
+                             </div>
+                           );
+                        }
+                        if (trimmed.startsWith('รวมประมาณ')) {
+                           return null;
+                        }
+                        return <p key={index} className="text-gray-700">{trimmed}</p>;
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="bg-white rounded-lg shadow p-6">
                 <h2 className="text-lg font-medium text-gray-900 mb-4">หมายเหตุเพิ่มเติม</h2>
                 <textarea
@@ -265,17 +315,45 @@ export default function NewBooking() {
                   onChange={(e) => setNotes(e.target.value)}
                   rows={3}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  placeholder="คำขอพิเศษหรือหมายเหตุ..."
+                  placeholder="คำขอพิเศษอื่นๆ หรืออาการเพิ่มเติม..."
                 />
               </div>
 
-              <div className="bg-primary-50 rounded-lg p-6">
-                <h3 className="font-medium text-primary-900 mb-4">สรุปข้อมูลการจอง</h3>
-                <div className="space-y-2 text-sm">
-                  <p><span className="text-gray-600">วันที่:</span> {format(selectedDate, 'd MMMM yyyy', { locale: th })}</p>
-                  <p><span className="text-gray-600">เวลา:</span> {selectedTime}</p>
+              <div className="bg-white rounded-lg shadow-lg overflow-hidden border border-gray-100">
+                <div className="bg-primary-600 px-6 py-4">
+                  <h3 className="text-white font-medium flex items-center gap-2">
+                    <Calendar className="w-5 h-5" /> สรุปข้อมูลการจอง
+                  </h3>
+                </div>
+                <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1 flex items-center gap-1">
+                      <Clock className="w-4 h-4" /> วันและเวลา
+                    </p>
+                    <p className="font-medium text-gray-900">{format(selectedDate, 'd MMMM yyyy', { locale: th })}</p>
+                    <p className="text-primary-600 font-bold text-lg">{selectedTime} น.</p>
+                  </div>
+                  
                   {estimatedPrice && (
-                    <p><span className="text-gray-600">ราคาประเมินเบื้องต้น:</span> {new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(Number(estimatedPrice))}</p>
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">ราคาประเมินเบื้องต้น</p>
+                      <p className="font-medium text-gray-900 text-xl text-green-600">
+                        {new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(Number(estimatedPrice))}
+                      </p>
+                    </div>
+                  )}
+
+                  {(vehicle.brand || vehicle.model) && (
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1 flex items-center gap-1">
+                        <Car className="w-4 h-4" /> รถของคุณ
+                      </p>
+                      <p className="font-medium text-gray-900">{vehicle.brand} {vehicle.model}</p>
+                      <div className="flex gap-2 text-sm text-gray-500">
+                         {vehicle.color && <span>สี{vehicle.color}</span>}
+                         {vehicle.licensePlate && <span>{vehicle.licensePlate}</span>}
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>

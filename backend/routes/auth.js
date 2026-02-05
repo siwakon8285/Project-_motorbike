@@ -24,7 +24,7 @@ router.post('/register', [
 
     // Check if user exists
     const existingUser = await pool.query(
-      'SELECT * FROM users WHERE email = $1 OR username = $2',
+      'SELECT * FROM users WHERE LOWER(email) = LOWER($1) OR username = $2',
       [email, username]
     );
     
@@ -100,7 +100,7 @@ router.post('/login', [
 
     // Check for user
     const userResult = await pool.query(
-      'SELECT * FROM users WHERE email = $1',
+      'SELECT * FROM users WHERE LOWER(email) = LOWER($1)',
       [email]
     );
     

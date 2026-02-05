@@ -5,7 +5,8 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import { format } from 'date-fns';
-import { History, Wrench, FileText, Download } from 'lucide-react';
+import { th } from 'date-fns/locale';
+import { History, Wrench, FileText, Download, Car, Calendar, Clock, DollarSign } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface ServiceHistory {
@@ -13,6 +14,8 @@ interface ServiceHistory {
   vehicle_brand: string;
   vehicle_model: string;
   vehicle_license_plate: string;
+  vehicle_color?: string;
+  vehicle_year?: number;
   services: {
     id: number;
     name: string;
@@ -141,7 +144,7 @@ export default function HistoryPage() {
                           <div>
                             <p className="text-xs text-gray-500 uppercase tracking-wide">วันที่รับบริการ</p>
                             <p className="text-sm font-medium text-gray-900">
-                              {format(new Date(record.updated_at || record.booking_date), 'dd MMM yyyy')}
+                              {format(new Date(record.booking_date), 'dd MMM yyyy', { locale: th })}
                             </p>
                           </div>
                           <div>
@@ -152,13 +155,82 @@ export default function HistoryPage() {
                           </div>
                         </div>
 
-                        {/* Repair details removed */}
+                        {/* Detailed Information */}
+                        <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                          <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                             <Car className="w-4 h-4 mr-2" /> ข้อมูลยานพาหนะและรายละเอียด
+                          </h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                             <div>
+                               <span className="text-gray-500">สีรถ:</span> 
+                               <span className="ml-2 font-medium text-gray-900">{record.vehicle_color || '-'}</span>
+                             </div>
+                             <div>
+                               <span className="text-gray-500">ปี:</span> 
+                               <span className="ml-2 font-medium text-gray-900">{record.vehicle_year || '-'}</span>
+                             </div>
+                             <div>
+                               <span className="text-gray-500">เวลาจอง:</span> 
+                               <span className="ml-2 font-medium text-gray-900">{record.booking_time}</span>
+                             </div>
+                             <div>
+                               <span className="text-gray-500">บริการที่เลือก:</span>
+                               <div className="mt-1">
+                                 {record.services && record.services.length > 0 ? (
+                                   <ul className="list-disc list-inside text-gray-700">
+                                     {record.services.map(s => (
+                                       <li key={s.id}>{s.name} ({formatCurrency(s.price)})</li>
+                                     ))}
+                                   </ul>
+                                 ) : (
+                                   <span className="ml-2 font-medium text-gray-900">-</span>
+                                 )}
+                               </div>
+                             </div>
+                          </div>
+                        </div>
 
                         {record.notes && (
-                          <div className="mt-4 p-3 bg-yellow-50 rounded-lg">
-                            <p className="text-sm text-gray-700">
-                              <span className="font-medium">หมายเหตุ:</span> {record.notes}
-                            </p>
+                          <div className="mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-100">
+                             {record.notes.includes('รายการอะไหล่ที่เลือกประเมินราคา') ? (
+                               <div>
+                                 <h4 className="text-sm font-semibold text-yellow-800 mb-2 flex items-center">
+                                   <FileText className="w-4 h-4 mr-2" /> รายละเอียดการประเมินราคาและหมายเหตุ
+                                 </h4>
+                                 <div className="space-y-2 text-sm text-gray-700">
+                                   {record.notes.split('|').map((part, index) => {
+                                      const trimmed = part.trim();
+                                      if (!trimmed) return null;
+                                      if (trimmed.startsWith('รายการอะไหล่')) {
+                                         const content = trimmed.replace('รายการอะไหล่ที่เลือกประเมินราคา:', '').trim();
+                                         return (
+                                           <div key={index} className="mb-2">
+                                             <p className="font-medium text-gray-900 mb-1">รายการอะไหล่:</p>
+                                             <p>{content}</p>
+                                           </div>
+                                         );
+                                      }
+                                      if (trimmed.startsWith('รวมประมาณ')) {
+                                         return <p key={index} className="font-bold text-gray-900 mt-2">{trimmed}</p>;
+                                      }
+                                      if (trimmed.includes('หมายเหตุเพิ่มเติม:')) {
+                                          const [label, content] = trimmed.split('หมายเหตุเพิ่มเติม:');
+                                          return (
+                                            <div key={index} className="mt-2 pt-2 border-t border-yellow-200">
+                                              <p className="font-medium text-gray-900">หมายเหตุเพิ่มเติม:</p>
+                                              <p>{content.trim()}</p>
+                                            </div>
+                                          );
+                                      }
+                                      return <p key={index}>{trimmed}</p>;
+                                   })}
+                                 </div>
+                               </div>
+                             ) : (
+                               <p className="text-sm text-gray-700">
+                                 <span className="font-medium">หมายเหตุ:</span> {record.notes}
+                               </p>
+                             )}
                           </div>
                         )}
                       </div>
