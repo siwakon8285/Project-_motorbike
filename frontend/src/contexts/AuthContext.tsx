@@ -30,7 +30,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Configure Axios
-axios.defaults.baseURL = 'http://127.0.0.1:5000';
+axios.defaults.baseURL = 'http://127.0.0.1:5001';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -53,7 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           axios.defaults.headers.common['x-auth-token'] = token;
           try {
              // Use explicit full URL to be sure
-             const res = await axios.get('http://127.0.0.1:5000/api/auth/me', { timeout: 2000 });
+             const res = await axios.get('http://127.0.0.1:5001/api/auth/me', { timeout: 2000 });
              setUser(res.data);
              console.log('User fetched successfully');
           } catch (e) {
@@ -84,7 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchUser = async () => {
     // Legacy function, might be used by login/register
     try {
-        const res = await axios.get('http://127.0.0.1:5000/api/auth/me', { timeout: 3000 });
+        const res = await axios.get('http://127.0.0.1:5001/api/auth/me', { timeout: 3000 });
         setUser(res.data);
     } catch (e) {
         console.error("Fetch user failed", e);
