@@ -49,7 +49,9 @@ export default function Login() {
     setLoading(true);
     try {
       await login(formData.email, formData.password);
-    } catch (err) {
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
     } finally {
       setLoading(false);
     }

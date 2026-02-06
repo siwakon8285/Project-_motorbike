@@ -83,7 +83,7 @@ router.get('/:id', auth, async (req, res) => {
     
     res.json(part.rows[0]);
   } catch (err) {
-    // console.error(err.message);
+    console.error('Update Part Error:', err);
     res.status(500).send('Server error');
   }
 });
@@ -130,7 +130,7 @@ router.post('/', auth, upload.single('image'), [
 
     res.json(newPart.rows[0]);
   } catch (err) {
-    // console.error(err.message);
+    console.error('Create Part Error:', err);
     res.status(500).send('Server error');
   }
 });

@@ -17,7 +17,7 @@ if exist "frontend\.next" (
 )
 
 echo [3/4] Starting Backend Server...
-start "Backend Server (Port 5001)" cmd /k "cd backend && node server.js"
+start "Backend Server (Port 5000)" cmd /k "cd backend && node server.js"
 
 echo Waiting 5 seconds for backend to initialize...
 timeout /t 5 >nul
@@ -31,7 +31,7 @@ start "Frontend Server (Port 3000)" cmd /k "npm run dev"
 echo.
 echo ===================================================
 echo    System Started Successfully!
-echo    - Backend: http://localhost:5001
+echo    - Backend: http://localhost:5000
 echo    - Frontend: http://localhost:3000
 echo ===================================================
 echo.

@@ -16,15 +16,18 @@ import {
   ChevronRight,
   ChevronLeft,
   Calculator,
-  ClipboardList
+  ClipboardList,
+  MessageCircle
 } from 'lucide-react';
 import { useState } from 'react';
+import ChatWidget from './ChatWidget';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const navigation = [
     { name: 'แดชบอร์ด', href: '/dashboard', icon: LayoutDashboard, description: 'ภาพรวมระบบ' },
@@ -142,6 +145,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </button>
 
             <div className="flex items-center gap-4 ml-auto">
+              {/* AI Chatbot Icon */}
+              <button 
+                className={`p-3 rounded-xl transition-all relative ${
+                  isChatOpen 
+                    ? 'bg-primary-100 text-primary-600' 
+                    : 'text-gray-500 hover:text-primary-600 hover:bg-primary-50'
+                }`}
+                title="AI Assistant"
+                onClick={() => setIsChatOpen(!isChatOpen)}
+              >
+                <MessageCircle className="w-5 h-5" />
+              </button>
+
               {/* Notification Bell */}
               <Link href="/notifications" className="p-3 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-xl transition-all relative">
                 <Bell className="w-5 h-5" />
@@ -171,6 +187,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </main>
       </div>
+      <ChatWidget isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
     </div>
   );
 }

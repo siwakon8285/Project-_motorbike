@@ -6,7 +6,8 @@ const dotenv = require('dotenv');
 const path = require('path');
 const { pool } = require('./config/db');
 
-dotenv.config();
+// Load env from backend directory explicitly
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 const server = http.createServer(app);
@@ -49,10 +50,18 @@ app.use((req, res, next) => {
 });
 
 // Middleware
-const allowedOrigins = ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5001', 'http://127.0.0.1:5001'];
+const allowedOrigins = ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5000', 'http://127.0.0.1:5000'];
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Allow any localhost origin
+    if (origin.match(/^http:\/\/localhost:\d+$/) || origin.match(/^http:\/\/127\.0\.0\.1:\d+$/)) {
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -67,7 +76,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Database Connection Test
-pool.query("SELECT datetime('now') as now", (err, res) => {
+pool.query("SELECT NOW() as now", (err, res) => {
   if (err) {
     console.error('Database Connection Error:', err);
   } else {
@@ -83,6 +92,7 @@ app.use('/api/bookings', require('./routes/bookings'));
 app.use('/api/parts', require('./routes/parts'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/dashboard', require('./routes/dashboard'));
+app.use('/api/chat', require('./routes/chat'));
 
 const PORT = process.env.PORT || 5000;
 

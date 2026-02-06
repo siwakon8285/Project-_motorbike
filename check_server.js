@@ -9,7 +9,7 @@ async function checkHealth() {
 
   try {
     log('Checking Backend...');
-    const res = await axios.get('http://localhost:5001/api/parts'); 
+    const res = await axios.get('http://localhost:5000/api/parts'); 
     log(`Backend Response: ${res.status}`);
   } catch (err) {
     log(`Error Code: ${err.code}`);
