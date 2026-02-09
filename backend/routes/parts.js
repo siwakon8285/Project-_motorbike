@@ -41,10 +41,17 @@ const upload = multer({
 // Get all parts
 router.get('/', auth, async (req, res) => {
   try {
-    const { category, lowStock, model } = req.query;
+    const { category, lowStock, model, ids } = req.query;
     let query = 'SELECT * FROM parts WHERE 1=1';
     const params = [];
     let paramIndex = 1;
+
+    if (ids) {
+      const idArray = ids.split(',').map(id => parseInt(id.trim()));
+      query += ` AND id = ANY($${paramIndex}::int[])`;
+      params.push(idArray);
+      paramIndex++;
+    }
 
     if (category) {
       query += ` AND category = $${paramIndex}`;

@@ -8,6 +8,8 @@ import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { History, Wrench, FileText, Download, Car, Calendar, Clock, DollarSign } from 'lucide-react';
 import toast from 'react-hot-toast';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 interface ServiceHistory {
   id: number;
@@ -25,8 +27,14 @@ interface ServiceHistory {
   booking_time: string;
   total_price: number;
   status: string;
+  payment_status?: string;
+  payment_method?: string;
   notes: string;
   updated_at?: string;
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
+  email?: string;
 }
 
 export default function HistoryPage() {
@@ -79,6 +87,158 @@ export default function HistoryPage() {
       style: 'currency',
       currency: 'THB'
     }).format(amount);
+  };
+
+  const handleDownloadPdf = async (record: ServiceHistory) => {
+    const loadingToast = toast.loading('กำลังสร้างไฟล์ PDF...');
+    
+    try {
+      // Create a temporary container for the PDF content
+      const container = document.createElement('div');
+      container.style.position = 'absolute';
+      container.style.top = '-9999px';
+      container.style.left = '-9999px';
+      container.style.width = '210mm'; // A4 width
+      container.style.minHeight = '297mm'; // A4 height
+      container.style.backgroundColor = 'white';
+      container.style.padding = '20mm';
+      container.style.fontFamily = "'Sarabun', 'Noto Sans Thai', sans-serif"; // Ensure Thai font support if available
+      document.body.appendChild(container);
+
+      // Helper to format date
+      const formatDate = (dateStr: string) => format(new Date(dateStr), 'dd MMMM yyyy', { locale: th });
+
+      // Generate HTML content
+      container.innerHTML = `
+        <div class="pdf-content text-gray-900">
+          <!-- Header -->
+          <div class="flex justify-between items-start border-b-2 border-gray-800 pb-4 mb-6">
+            <div>
+              <h1 class="text-2xl font-bold mb-1">ใบสั่งจอง / ใบแจ้งหนี้</h1>
+              <p class="text-sm text-gray-600">Motorbike Service Shop</p>
+              <p class="text-sm text-gray-600">โทร: 02-xxx-xxxx</p>
+            </div>
+            <div class="text-right">
+              <p class="font-bold">เลขที่จอง: #${record.id}</p>
+              <p class="text-sm">วันที่: ${formatDate(record.booking_date)}</p>
+              <p class="text-sm">เวลา: ${record.booking_time}</p>
+              <div class="mt-2 px-3 py-1 bg-gray-100 rounded inline-block text-sm font-bold">
+                ${getStatusText(record.status)}
+              </div>
+              <p class="text-sm mt-2 text-gray-600">
+                การชำระเงิน: ${record.payment_method === 'promptpay' ? 'โอนจ่าย (PromptPay)' : 'ชำระหน้าร้าน (Shop)'}
+              </p>
+              <p class="text-sm ${record.payment_status === 'paid' ? 'text-green-600 font-bold' : 'text-red-600'}">
+                สถานะ: ${record.payment_status === 'paid' ? 'ชำระแล้ว' : 'รอชำระเงิน'}
+              </p>
+            </div>
+          </div>
+
+          <!-- Customer & Vehicle Info -->
+          <div class="grid grid-cols-2 gap-8 mb-8">
+            <div>
+              <h3 class="font-bold border-b border-gray-300 mb-2 pb-1">ข้อมูลลูกค้า</h3>
+              <p>คุณ ${record.first_name || user?.profile?.firstName || ''} ${record.last_name || user?.profile?.lastName || ''}</p>
+              <p class="text-sm text-gray-600">เบอร์โทร: ${record.phone || user?.profile?.phone || '-'}</p>
+              <p class="text-sm text-gray-600">อีเมล: ${record.email || user?.email || '-'}</p>
+            </div>
+            <div>
+              <h3 class="font-bold border-b border-gray-300 mb-2 pb-1">ข้อมูลยานพาหนะ</h3>
+              <p>${record.vehicle_brand} ${record.vehicle_model}</p>
+              <p class="text-sm text-gray-600">ทะเบียน: ${record.vehicle_license_plate}</p>
+              <p class="text-sm text-gray-600">สี: ${record.vehicle_color || '-'}</p>
+              <p class="text-sm text-gray-600">ปี: ${record.vehicle_year || '-'}</p>
+            </div>
+          </div>
+
+          <!-- Services Table -->
+          <div class="mb-8">
+            <h3 class="font-bold mb-3">รายละเอียดบริการ</h3>
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-gray-100 border-b border-gray-300">
+                  <th class="py-2 px-3 font-semibold text-sm">ลำดับ</th>
+                  <th class="py-2 px-3 font-semibold text-sm">รายการ</th>
+                  <th class="py-2 px-3 font-semibold text-sm text-right">ราคา</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${record.services && record.services.length > 0 
+                  ? record.services.map((s, idx) => `
+                    <tr class="border-b border-gray-200">
+                      <td class="py-2 px-3 text-sm">${idx + 1}</td>
+                      <td class="py-2 px-3 text-sm">${s.name}</td>
+                      <td class="py-2 px-3 text-sm text-right">${formatCurrency(s.price)}</td>
+                    </tr>
+                  `).join('')
+                  : `<tr><td colspan="3" class="py-4 text-center text-gray-500">ไม่มีรายการบริการ</td></tr>`
+                }
+              </tbody>
+              <tfoot>
+                <tr class="font-bold">
+                  <td colspan="2" class="py-3 px-3 text-right">รวมเป็นเงินทั้งสิ้น</td>
+                  <td class="py-3 px-3 text-right text-lg">${formatCurrency(record.total_price)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <!-- Notes -->
+          ${record.notes ? `
+            <div class="mb-8 p-4 bg-gray-50 rounded border border-gray-200">
+              <h3 class="font-bold text-sm mb-2">หมายเหตุ / รายละเอียดเพิ่มเติม</h3>
+              <div class="text-sm whitespace-pre-line text-gray-700">
+                ${record.notes.split('\n').filter(l => !l.trim().startsWith('บริการที่ต้องการ:')).join('<br/>')}
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Footer -->
+          <div class="mt-12 pt-8 border-t border-gray-300 flex justify-between items-end text-sm text-gray-500">
+            <div>
+              <p>ขอบคุณที่ใช้บริการ</p>
+              <p>Motorbike Service Shop</p>
+            </div>
+            <div class="text-right">
+              <p class="mb-8">____________________________</p>
+              <p>ลายเซ็นผู้รับเงิน / เจ้าหน้าที่</p>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Render to canvas
+      const canvas = await html2canvas(container, {
+        scale: 2, // Higher scale for better quality
+        useCORS: true,
+        logging: false
+      });
+
+      // Create PDF
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const imgWidth = 210;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      pdf.save(`booking-receipt-${record.id}.pdf`);
+
+      toast.dismiss(loadingToast);
+      toast.success('ดาวน์โหลดไฟล์สำเร็จ');
+    } catch (err) {
+      console.error(err);
+      toast.dismiss(loadingToast);
+      toast.error('เกิดข้อผิดพลาดในการสร้างไฟล์ PDF');
+    } finally {
+      // Cleanup
+      const container = document.querySelector('body > div[style*="-9999px"]');
+      if (container) document.body.removeChild(container);
+    }
   };
 
   if (loading) {
@@ -190,58 +350,87 @@ export default function HistoryPage() {
                           </div>
                         </div>
 
-                        {record.notes && (
-                          <div className="mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-100">
-                             {record.notes.includes('รายการอะไหล่ที่เลือกประเมินราคา') ? (
-                               <div>
-                                 <h4 className="text-sm font-semibold text-yellow-800 mb-2 flex items-center">
-                                   <FileText className="w-4 h-4 mr-2" /> รายละเอียดการประเมินราคาและหมายเหตุ
-                                 </h4>
-                                 <div className="space-y-2 text-sm text-gray-700">
-                                   {record.notes.split('|').map((part, index) => {
-                                      const trimmed = part.trim();
-                                      if (!trimmed) return null;
-                                      if (trimmed.startsWith('รายการอะไหล่')) {
-                                         const content = trimmed.replace('รายการอะไหล่ที่เลือกประเมินราคา:', '').trim();
-                                         return (
-                                           <div key={index} className="mb-2">
-                                             <p className="font-medium text-gray-900 mb-1">รายการอะไหล่:</p>
-                                             <p>{content}</p>
-                                           </div>
-                                         );
-                                      }
-                                      if (trimmed.startsWith('รวมประมาณ')) {
-                                         return <p key={index} className="font-bold text-gray-900 mt-2">{trimmed}</p>;
-                                      }
-                                      if (trimmed.includes('หมายเหตุเพิ่มเติม:')) {
-                                          const [label, content] = trimmed.split('หมายเหตุเพิ่มเติม:');
-                                          return (
-                                            <div key={index} className="mt-2 pt-2 border-t border-yellow-200">
-                                              <p className="font-medium text-gray-900">หมายเหตุเพิ่มเติม:</p>
-                                              <p>{content.trim()}</p>
-                                            </div>
-                                          );
-                                      }
-                                      return <p key={index}>{trimmed}</p>;
-                                   })}
-                                 </div>
-                               </div>
-                             ) : (
-                               <p className="text-sm text-gray-700">
-                                 <span className="font-medium">หมายเหตุ:</span> {record.notes}
-                               </p>
-                             )}
-                          </div>
-                        )}
+                        {(() => {
+                          if (!record.notes) return null;
+                          
+                          const lines = record.notes.split('\n').filter(l => l.trim());
+                          const displayElements: React.ReactNode[] = [];
+                          
+                          lines.forEach((line, i) => {
+                            const trimmed = line.trim();
+                            
+                            // Skip redundant service request (already shown in Selected Services)
+                            if (trimmed.startsWith('บริการที่ต้องการ:')) return;
+
+                            // Handle Estimate details
+                            if (trimmed.includes('รายการอะไหล่ที่เลือกประเมินราคา')) {
+                               const parts = trimmed.split('|');
+                               parts.forEach((part, j) => {
+                                 const pTrimmed = part.trim();
+                                 // Skip the list of parts (redundant)
+                                 if (pTrimmed.startsWith('รายการอะไหล่ที่เลือกประเมินราคา')) return;
+                                 
+                                 // Keep Total Estimate
+                                 if (pTrimmed.startsWith('รวมประมาณ')) {
+                                    displayElements.push(
+                                      <p key={`est-${i}-${j}`} className="font-bold text-gray-900 mt-1">{pTrimmed}</p>
+                                    );
+                                 } else {
+                                    displayElements.push(<p key={`est-${i}-${j}`}>{pTrimmed}</p>);
+                                 }
+                               });
+                               return;
+                            }
+
+                            // Normal notes
+                            if (trimmed.startsWith('หมายเหตุเพิ่มเติม:')) {
+                               const content = trimmed.replace('หมายเหตุเพิ่มเติม:', '').trim();
+                               if (content) {
+                                 displayElements.push(
+                                   <div key={i} className="mt-2 pt-2 border-t border-yellow-200">
+                                      <span className="font-medium">หมายเหตุเพิ่มเติม:</span> {content}
+                                   </div>
+                                 );
+                               }
+                               return;
+                            }
+
+                            displayElements.push(<p key={i}>{trimmed}</p>);
+                          });
+
+                          if (displayElements.length === 0) return null;
+
+                          return (
+                            <div className="mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-100">
+                              <h4 className="text-sm font-semibold text-yellow-800 mb-2 flex items-center">
+                                <FileText className="w-4 h-4 mr-2" /> รายละเอียดเพิ่มเติม
+                              </h4>
+                              <div className="space-y-2 text-sm text-gray-700">
+                                {displayElements}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       <div className="ml-6">
-                        <button
-                          className="p-2 text-gray-400 hover:text-primary-600"
-                          title="Download Receipt"
-                        >
-                          <Download className="w-5 h-5" />
-                        </button>
+                        {record.status === 'confirmed' ? (
+                          <button
+                            className="p-2 text-primary-600 hover:text-primary-800"
+                            title="Download Receipt"
+                            onClick={() => handleDownloadPdf(record)}
+                          >
+                            <Download className="w-5 h-5" />
+                          </button>
+                        ) : (
+                          <button
+                            className="p-2 text-gray-300 cursor-not-allowed"
+                            title="Download only available for confirmed bookings"
+                            disabled
+                          >
+                            <Download className="w-5 h-5" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>

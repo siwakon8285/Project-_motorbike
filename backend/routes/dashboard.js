@@ -20,12 +20,13 @@ router.get('/', auth, async (req, res) => {
           [req.user.id]
         ),
         pool.query(
-          `SELECT b.*, json_agg(s.name) as services
+          `SELECT b.*, v.license_plate as vehicle_license_plate, v.model as vehicle_model, json_agg(s.name) as services
            FROM bookings b
            LEFT JOIN booking_services bs ON b.id = bs.booking_id
            LEFT JOIN services s ON bs.service_id = s.id
+           LEFT JOIN vehicles v ON b.vehicle_id = v.id
            WHERE b.user_id = $1
-           GROUP BY b.id
+           GROUP BY b.id, v.license_plate, v.model
            ORDER BY b.booking_date DESC
            LIMIT 5`,
           [req.user.id]
@@ -82,13 +83,15 @@ router.get('/', auth, async (req, res) => {
 
       // Recent bookings
       const recentBookings = await pool.query(
-        `SELECT b.*, u.username, u.first_name, u.last_name,
+        `SELECT b.*, u.username, u.first_name, u.last_name, u.phone,
+                v.license_plate as vehicle_license_plate,
                 json_agg(s.name) as services
          FROM bookings b
          JOIN users u ON b.user_id = u.id
          LEFT JOIN booking_services bs ON b.id = bs.booking_id
          LEFT JOIN services s ON bs.service_id = s.id
-         GROUP BY b.id, u.username, u.first_name, u.last_name
+         LEFT JOIN vehicles v ON b.vehicle_id = v.id
+         GROUP BY b.id, u.username, u.first_name, u.last_name, u.phone, v.license_plate
          ORDER BY b.created_at DESC
          LIMIT 10`
       );
@@ -125,12 +128,13 @@ router.get('/customer-stats', auth, async (req, res) => {
         [req.user.id]
       ),
       pool.query(
-        `SELECT b.*, json_agg(s.name) as services
+        `SELECT b.*, v.license_plate as vehicle_license_plate, v.model as vehicle_model, json_agg(s.name) as services
          FROM bookings b
          LEFT JOIN booking_services bs ON b.id = bs.booking_id
          LEFT JOIN services s ON bs.service_id = s.id
+         LEFT JOIN vehicles v ON b.vehicle_id = v.id
          WHERE b.user_id = $1 AND b.status = 'completed'
-         GROUP BY b.id
+         GROUP BY b.id, v.license_plate, v.model
          ORDER BY b.booking_date DESC
          LIMIT 5`,
         [req.user.id]

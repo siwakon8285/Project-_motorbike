@@ -99,14 +99,15 @@ export default function EstimatePage() {
     const note = `รายการอะไหล่ที่เลือกประเมินราคา: ${partsSummary} | รวมประมาณ: ${totalEstimate} บาท`;
     
     // Navigate to booking page with pre-filled notes
-    // Note: You'll need to update the booking page to handle this query param if you want it auto-filled,
-    // or user can just see it as reference.
-    // For now, let's pass it in URL.
     const params = new URLSearchParams();
     params.set('notes', note);
     params.set('model', searchModel);
     params.set('fromEstimate', 'true');
     params.set('estimatedPrice', totalEstimate.toString());
+    
+    // Pass selected part IDs
+    const partIds = selectedParts.map(p => p.id).join(',');
+    params.set('partIds', partIds);
     
     // Preserve date and time if passed from booking page
     const dateParam = searchParams.get('date');
@@ -167,12 +168,15 @@ export default function EstimatePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {parts.map((part) => {
               const isSelected = selectedParts.some(p => p.id === part.id);
+              const isOutOfStock = part.quantity <= 0;
+
               return (
                 <div 
                   key={part.id} 
-                  className={`group bg-white rounded-2xl p-4 shadow-sm border-2 transition-all duration-200 cursor-pointer hover:shadow-md
+                  className={`group bg-white rounded-2xl p-4 shadow-sm border-2 transition-all duration-200 
+                    ${isOutOfStock ? 'opacity-60 cursor-not-allowed grayscale' : 'cursor-pointer hover:shadow-md'}
                     ${isSelected ? 'border-primary-500 ring-2 ring-primary-100' : 'border-transparent hover:border-primary-200'}`}
-                  onClick={() => togglePart(part)}
+                  onClick={() => !isOutOfStock && togglePart(part)}
                 >
                   <div className="relative w-full h-48 mb-4 bg-gray-100 rounded-xl overflow-hidden">
                     {!imageErrors[part.id] && part.image_url ? (
@@ -193,25 +197,25 @@ export default function EstimatePage() {
                         <Check className="w-5 h-5" />
                       </div>
                     )}
+                    {isOutOfStock && (
+                       <div className="absolute inset-0 bg-black/10 flex items-center justify-center backdrop-blur-[1px]">
+                         <span className="text-white font-bold px-4 py-2 bg-red-500/90 rounded-full text-sm shadow-lg">สินค้าหมด</span>
+                       </div>
+                    )}
                   </div>
                   
                   <h3 className="font-bold text-gray-900 mb-1 line-clamp-1">{part.name}</h3>
                   <p className="text-sm text-gray-500 mb-3 line-clamp-1">
-                    รุ่นที่รองรับ: {part.compatible_models || 'ทุกรุ่น'}
+                    {part.description || 'ไม่มีรายละเอียด'}
                   </p>
                   
-                  <div className="flex items-center justify-between mt-auto">
-                    <span className="text-lg font-bold text-primary-600">
+                  <div className="flex items-center justify-between">
+                    <span className="text-primary-600 font-bold text-lg">
                       {formatCurrency(Number(part.selling_price))}
                     </span>
-                    <button 
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
-                        ${isSelected 
-                          ? 'bg-red-50 text-red-600 hover:bg-red-100' 
-                          : 'bg-primary-50 text-primary-600 hover:bg-primary-100'}`}
-                    >
-                      {isSelected ? 'ยกเลิก' : 'เลือก'}
-                    </button>
+                    <span className={`text-xs px-2 py-1 rounded-full ${isOutOfStock ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                      {isOutOfStock ? 'หมด' : `เหลือ ${part.quantity} ชิ้น`}
+                    </span>
                   </div>
                 </div>
               );

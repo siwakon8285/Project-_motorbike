@@ -398,6 +398,77 @@ export default function Dashboard() {
                   </div>
                 </div>
               </div>
+
+              {/* Recent Bookings Table (Customer) */}
+              <div className="card overflow-hidden">
+                <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <Clock className="w-5 h-5 text-primary-500" />
+                    การจองล่าสุด
+                  </h3>
+                  <Link href="/my-bookings" className="text-sm text-primary-600 hover:text-primary-700 font-medium hover:underline">
+                    ดูทั้งหมด
+                  </Link>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ลูกค้า</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">รถ</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">วันที่</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">สถานะ</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ราคา</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {customerStats?.recentHistory?.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                            ไม่มีประวัติการจอง
+                          </td>
+                        </tr>
+                      ) : (
+                        customerStats?.recentHistory?.map((booking) => (
+                          <tr key={booking.id} className="hover:bg-gray-50/50 transition-colors">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                                  <Users className="w-4 h-4 text-gray-500" />
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900">{user?.profile?.firstName || user?.username}</p>
+                                  <p className="text-xs text-gray-500">{user?.profile?.phone || '-'}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                <Bike className="w-4 h-4 text-gray-400" />
+                                <span className="text-sm text-gray-600">{booking.vehicle_license_plate || booking.vehicle_model || '-'}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">
+                                {format(new Date(booking.booking_date), 'd MMM yyyy', { locale: th })}
+                              </div>
+                              <div className="text-xs text-gray-500">{booking.booking_time.slice(0, 5)} น.</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(booking.status)}`}>
+                                {getStatusText(booking.status)}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                              {formatCurrency(booking.total_price)}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </>
           )}
         </div>

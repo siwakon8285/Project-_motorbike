@@ -75,6 +75,12 @@ export default function Parts() {
     const socket = io(API_URL);
 
     socket.on('parts_update', (event: any) => {
+      // If no event data or type is 'refresh', fetch all parts
+      if (!event || event.type === 'refresh') {
+        fetchParts();
+        return;
+      }
+
       if (event.type === 'create') {
         setParts(prev => [...prev, event.data]);
         toast.success(`เพิ่มอะไหล่ใหม่แล้ว: ${event.data.name}`);
@@ -88,7 +94,7 @@ export default function Parts() {
     return () => {
       socket.disconnect();
     };
-  }, []);
+  }, [fetchParts]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

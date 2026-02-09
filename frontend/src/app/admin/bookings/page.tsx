@@ -147,6 +147,23 @@ export default function AdminBookingsPage() {
     }
   };
 
+  // Helper to extract parts from notes
+  const getDisplayServices = (booking: Booking) => {
+    // If we have actual services, return them
+    if (booking.services?.length > 0) return booking.services;
+
+    // If no services but we have notes with "Price Estimate" format
+    if (booking.notes && booking.notes.includes('รายการอะไหล่ที่เลือกประเมินราคา:')) {
+      const match = booking.notes.match(/รายการอะไหล่ที่เลือกประเมินราคา:\s*(.*?)\s*\|/);
+      if (match && match[1]) {
+        // Create a fake service object for display
+        return [{ id: -1, name: match[1], price: 0 }];
+      }
+    }
+
+    return [];
+  };
+
   if (loading && !bookings.length) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -278,8 +295,8 @@ export default function AdminBookingsPage() {
                           <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">รายการซ่อม</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          {booking.services?.length > 0 ? booking.services.map(s => (
-                            <span key={s.id} className="text-sm bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md border border-blue-100">
+                          {getDisplayServices(booking).length > 0 ? getDisplayServices(booking).map((s, idx) => (
+                            <span key={s.id === -1 ? `fake-${idx}` : s.id} className="text-sm bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md border border-blue-100">
                               {s.name}
                             </span>
                           )) : <span className="text-sm text-gray-400 italic">- ไม่ได้ระบุรายการ -</span>}
