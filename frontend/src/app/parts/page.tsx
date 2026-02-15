@@ -8,7 +8,7 @@ import { Package, Plus, Search, Edit, Trash2, AlertTriangle, Image as ImageIcon,
 import toast from 'react-hot-toast';
 import { io } from 'socket.io-client';
 
-const API_URL = 'http://127.0.0.1:5000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
 
 interface Part {
   id: number;

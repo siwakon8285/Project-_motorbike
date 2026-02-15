@@ -50,7 +50,14 @@ app.use((req, res, next) => {
 });
 
 // Middleware
-const allowedOrigins = ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5000', 'http://127.0.0.1:5000'];
+const envOrigins = process.env.FRONTEND_ORIGINS ? process.env.FRONTEND_ORIGINS.split(',').map(s => s.trim()).filter(Boolean) : [];
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:5000',
+  'http://127.0.0.1:5000',
+  ...envOrigins
+];
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
@@ -58,6 +65,11 @@ app.use(cors({
     
     // Allow any localhost origin
     if (origin.match(/^http:\/\/localhost:\d+$/) || origin.match(/^http:\/\/127\.0\.0\.1:\d+$/)) {
+      return callback(null, true);
+    }
+    
+    // Allow Vercel domains
+    if (origin.match(/^https:\/\/.*\.vercel\.app$/)) {
       return callback(null, true);
     }
     
