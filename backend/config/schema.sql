@@ -53,21 +53,12 @@ CREATE TABLE IF NOT EXISTS bookings (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Booking Services (Many-to-Many)
 CREATE TABLE IF NOT EXISTS booking_services (
     id SERIAL PRIMARY KEY,
     booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE,
     service_id INTEGER REFERENCES services(id) ON DELETE CASCADE
 );
 
--- Booking Parts (Many-to-Many)
-CREATE TABLE IF NOT EXISTS booking_parts (
-    id SERIAL PRIMARY KEY,
-    booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE,
-    part_id INTEGER REFERENCES parts(id) ON DELETE CASCADE
-);
-
--- Parts Table
 CREATE TABLE IF NOT EXISTS parts (
     id SERIAL PRIMARY KEY,
     name VARCHAR(200) NOT NULL,
@@ -81,6 +72,12 @@ CREATE TABLE IF NOT EXISTS parts (
     supplier VARCHAR(200),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS booking_parts (
+    id SERIAL PRIMARY KEY,
+    booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE,
+    part_id INTEGER REFERENCES parts(id) ON DELETE CASCADE
 );
 
 -- Notifications Table

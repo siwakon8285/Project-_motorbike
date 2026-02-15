@@ -178,12 +178,12 @@ export default function EstimatePage() {
                     ${isSelected ? 'border-primary-500 ring-2 ring-primary-100' : 'border-transparent hover:border-primary-200'}`}
                   onClick={() => !isOutOfStock && togglePart(part)}
                 >
-                  <div className="relative w-full h-48 mb-4 bg-gray-100 rounded-xl overflow-hidden">
+                  <div className="relative w-full h-44 mb-4 bg-white rounded-xl overflow-hidden flex items-center justify-center">
                     {!imageErrors[part.id] && part.image_url ? (
                       <img 
                         src={`${API_URL}${part.image_url}`} 
                         alt={part.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-300"
                         onError={() => handleImageError(part.id)}
                       />
                     ) : (
@@ -205,9 +205,11 @@ export default function EstimatePage() {
                   </div>
                   
                   <h3 className="font-bold text-gray-900 mb-1 line-clamp-1">{part.name}</h3>
-                  <p className="text-sm text-gray-500 mb-3 line-clamp-1">
-                    {part.description || 'ไม่มีรายละเอียด'}
-                  </p>
+                  {part.compatible_models && (
+                    <p className="text-xs text-blue-600 mb-2 line-clamp-1">
+                      รุ่นที่รองรับ: {part.compatible_models}
+                    </p>
+                  )}
                   
                   <div className="flex items-center justify-between">
                     <span className="text-primary-600 font-bold text-lg">

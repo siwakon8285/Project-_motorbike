@@ -1,2 +1,0 @@
-Frontend (3000): DOWN
-Backend (5000): DOWN
