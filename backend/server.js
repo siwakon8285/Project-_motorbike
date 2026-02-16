@@ -4,6 +4,7 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
+const fs = require('fs');
 const { pool } = require('./config/db');
 
 // Load env from backend directory explicitly
@@ -87,6 +88,24 @@ app.use(express.urlencoded({ extended: true }));
 // Static files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+async function initSchema() {
+  try {
+    const schemaPath = path.join(__dirname, 'config', 'schema.sql');
+    if (!fs.existsSync(schemaPath)) return;
+    const sql = fs.readFileSync(schemaPath, 'utf8');
+    const statements = sql
+      .split(/;\s*\n/g)
+      .map(s => s.trim())
+      .filter(s => s && !s.startsWith('--'));
+    for (const stmt of statements) {
+      await pool.query(stmt);
+    }
+    console.log('Database schema initialized');
+  } catch (e) {
+    console.error('Schema initialization error:', e.message);
+  }
+}
+
 // Database Connection Test
 pool.query("SELECT NOW() as now", (err, res) => {
   if (err) {
@@ -95,6 +114,8 @@ pool.query("SELECT NOW() as now", (err, res) => {
     console.log('Database Connected at:', res.rows[0].now);
   }
 });
+
+initSchema();
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));

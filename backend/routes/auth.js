@@ -65,7 +65,7 @@ router.post('/register', [
     jwt.sign(
       payload,
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRE },
+      process.env.JWT_EXPIRE ? { expiresIn: process.env.JWT_EXPIRE } : {},
       (err, token) => {
         if (err) throw err;
         res.json({ 
@@ -131,7 +131,7 @@ router.post('/login', [
     jwt.sign(
       payload,
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRE },
+      process.env.JWT_EXPIRE ? { expiresIn: process.env.JWT_EXPIRE } : {},
       (err, token) => {
         if (err) throw err;
         res.json({ 
