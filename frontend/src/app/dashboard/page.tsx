@@ -23,6 +23,8 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 
+const REQUEST_TIMEOUT = process.env.NODE_ENV === 'production' ? 60000 : 5000;
+
 interface DashboardStats {
   stats: {
     totalBookings: number;
@@ -62,7 +64,7 @@ export default function Dashboard() {
         headers: {
           'x-auth-token': token
         },
-        timeout: 5000
+        timeout: REQUEST_TIMEOUT
       });
       
       if (user?.role === 'customer') {
@@ -476,4 +478,3 @@ export default function Dashboard() {
     </ProtectedRoute>
   );
 }
-

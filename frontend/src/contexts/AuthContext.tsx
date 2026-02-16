@@ -31,6 +31,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Configure Axios
 axios.defaults.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const REQUEST_TIMEOUT = process.env.NODE_ENV === 'production' ? 60000 : 5000;
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -53,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           axios.defaults.headers.common['x-auth-token'] = token;
           try {
              // Use explicit full URL to be sure
-             const res = await axios.get('/api/auth/me', { timeout: 2000 });
+             const res = await axios.get('/api/auth/me', { timeout: REQUEST_TIMEOUT });
              setUser(res.data);
              console.log('User fetched successfully');
           } catch (e) {
@@ -84,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchUser = async () => {
     // Legacy function, might be used by login/register
     try {
-        const res = await axios.get('/api/auth/me', { timeout: 3000 });
+        const res = await axios.get('/api/auth/me', { timeout: REQUEST_TIMEOUT });
         setUser(res.data);
     } catch (e) {
         console.error("Fetch user failed", e);
@@ -93,7 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      const res = await axios.post('/api/auth/login', { email, password }, { timeout: 10000 });
+      const res = await axios.post('/api/auth/login', { email, password }, { timeout: REQUEST_TIMEOUT });
       const { token, user } = res.data;
       localStorage.setItem('token', token);
       axios.defaults.headers.common['x-auth-token'] = token;
@@ -109,7 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register = async (userData: any) => {
     try {
-      const res = await axios.post('/api/auth/register', userData, { timeout: 10000 });
+      const res = await axios.post('/api/auth/register', userData, { timeout: REQUEST_TIMEOUT });
       const { token, user } = res.data;
       localStorage.setItem('token', token);
       axios.defaults.headers.common['x-auth-token'] = token;
