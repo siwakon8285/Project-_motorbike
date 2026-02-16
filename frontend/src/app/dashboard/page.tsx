@@ -85,7 +85,7 @@ export default function Dashboard() {
     if (!authLoading && user) {
       fetchStats();
     }
-  }, [authLoading, user]);
+  }, [authLoading, user, fetchStats]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('th-TH', {

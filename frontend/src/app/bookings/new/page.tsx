@@ -112,7 +112,7 @@ export default function NewBooking() {
       const partsList = selectedPartsData.map(p => p.name).join(', ');
       setCustomService(`เปลี่ยนอะไหล่: ${partsList}`);
     }
-  }, [selectedPartsData]);
+  }, [selectedPartsData, customService]);
 
   const removePart = (id: number) => {
     setPartIds(prev => prev.filter(pId => pId !== id));

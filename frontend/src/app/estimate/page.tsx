@@ -229,7 +229,7 @@ export default function EstimatePage() {
               <Info className="w-8 h-8 text-gray-400" />
             </div>
             <p className="text-gray-500">ไม่พบรายการอะไหล่สำหรับรุ่นรถที่คุณระบุ</p>
-            <p className="text-sm text-gray-400 mt-2">ลองค้นหาด้วยคำกว้างๆ เช่น "Wave" หรือ "Honda"</p>
+            <p className="text-sm text-gray-400 mt-2">ลองค้นหาด้วยคำกว้างๆ เช่น &quot;Wave&quot; หรือ &quot;Honda&quot;</p>
           </div>
         )}
       </div>
