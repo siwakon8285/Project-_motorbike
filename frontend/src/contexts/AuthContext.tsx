@@ -29,8 +29,22 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Configure Axios
 axios.defaults.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+axios.interceptors.request.use((config) => {
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('token');
+    if (token) {
+      const headers: any = config.headers ?? {};
+      if (typeof headers.set === 'function') {
+        headers.set('x-auth-token', token);
+      } else {
+        headers['x-auth-token'] = token;
+      }
+      config.headers = headers;
+    }
+  }
+  return config;
+});
 const REQUEST_TIMEOUT = process.env.NODE_ENV === 'production' ? 60000 : 5000;
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
