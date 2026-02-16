@@ -568,4 +568,42 @@ router.get('/slots/available', async (req, res) => {
   }
 });
 
+// Delete all bookings for a user (admin only) and reset booking ID sequence
+router.delete('/user/:userId', auth, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    if (req.user.role !== 'admin') {
+      client.release();
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+    await client.query('BEGIN');
+    const userId = parseInt(req.params.userId);
+    const deleteNotifications = await client.query(
+      "DELETE FROM notifications WHERE user_id = $1 AND type = 'booking' RETURNING id",
+      [userId]
+    );
+    const deleteBookings = await client.query(
+      'DELETE FROM bookings WHERE user_id = $1 RETURNING id',
+      [userId]
+    );
+    const maxIdRes = await client.query('SELECT COALESCE(MAX(id), 0) AS max_id FROM bookings');
+    const maxId = parseInt(maxIdRes.rows[0].max_id || 0);
+    await client.query(
+      "SELECT setval(pg_get_serial_sequence('bookings','id'), $1, true)",
+      [Math.max(maxId, 1)]
+    );
+    await client.query('COMMIT');
+    client.release();
+    return res.json({
+      deletedBookings: deleteBookings.rowCount,
+      deletedNotifications: deleteNotifications.rowCount,
+      nextBookingId: maxId + 1
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    client.release();
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router;
