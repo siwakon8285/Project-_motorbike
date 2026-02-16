@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import axios from 'axios';
 import { format, addDays, isSameDay } from 'date-fns';
 import { th } from 'date-fns/locale';
@@ -16,7 +16,7 @@ interface Part {
   selling_price: number;
 }
 
-export default function NewBooking() {
+function NewBooking() {
   const { user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -657,5 +657,19 @@ export default function NewBooking() {
           )}
         </div>
     </ProtectedRoute>
+  );
+}
+
+export default function NewBookingPage() {
+  return (
+    <Suspense fallback={
+      <ProtectedRoute>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        </div>
+      </ProtectedRoute>
+    }>
+      <NewBooking />
+    </Suspense>
   );
 }

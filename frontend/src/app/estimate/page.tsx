@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import axios from 'axios';
 import { Search, ShoppingCart, Wrench, Info, Check } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -19,7 +19,7 @@ interface Part {
   quantity: number;
 }
 
-export default function EstimatePage() {
+function EstimatePage() {
   const router = useRouter();
   const { user } = useAuth();
   const searchParams = useSearchParams();
@@ -261,5 +261,17 @@ export default function EstimatePage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function EstimatePageWrapper() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600" />
+      </div>
+    }>
+      <EstimatePage />
+    </Suspense>
   );
 }
