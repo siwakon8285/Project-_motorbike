@@ -26,14 +26,15 @@
 - **File Upload**: Multer
 
 ### Database
-- **System**: PostgreSQL
-- **Features**: Transactions support (Atomic operations for stock deduction)
+- **Provider**: Supabase (Managed PostgreSQL)
+- **Engine**: PostgreSQL (เชื่อมต่อผ่านไลบรารี pg)
+- **Features**: Transactions support (Atomic operations for stock deduction), SSL, managed backups
 
 ### Automation & Integrations
-- **Workflow Automation**: n8n (Self-hosted)
-- **Cloud Storage**: Google Drive (เก็บไฟล์สลิปโอนเงิน)
+- **Workflow Automation**: n8n Cloud (Production URL แบบ https คงที่)
+- **Cloud Storage**: Google Drive (เก็บไฟล์สลิปโอนเงิน / ไฟล์แนบ)
 - **Data Logging**: Google Sheets (บันทึกข้อมูลการจอง)
-- **AI**: Groq / Gemini (สำหรับระบบ Chatbot - *กำลังพัฒนา*)
+- **AI**: Groq (สำหรับระบบ Chatbot)
 
 ---
 
@@ -62,13 +63,16 @@
 - กราฟแสดงแนวโน้มการใช้บริการ (Recharts)
 - ประวัติการซ่อม (Service History) พร้อม Export ใบเสร็จเป็น PDF
 
-### 5. ระบบอัตโนมัติ (Automation with n8n)
+### 5. ระบบอัตโนมัติ (Automation with n8n Cloud)
+- **Chat Workflow**:
+  - Webhook (POST) → IF ตรวจ X-N8N-SECRET → AI Agent (Groq) → Respond to Webhook
 - **Booking Workflow**:
-  1. รับข้อมูลการจองจาก Webhook (Backend)
-  2. แปลงไฟล์สลิป (Base64) เป็น Binary
-  3. อัปโหลดสลิปไปที่ Google Drive
-  4. บันทึกข้อมูลการจองลง Google Sheets พร้อมลิงก์รูปภาพ
-- **Chatbot Workflow** (*Planned*): เชื่อมต่อ AI เพื่อตอบคำถามลูกค้าอัตโนมัติ
+  - Webhook (POST) → IF ตรวจ X-N8N-SECRET → Move Binary Data (Base64→Binary) → Drive Upload → Sheets Append → Respond
+- **Security**:
+  - ใช้ header ลับ X-N8N-SECRET จาก Backend ตรวจที่ IF node
+- **Production URL**:
+  - Chat: ตัวอย่าง https://YOUR_SUBDOMAIN.n8n.cloud/webhook/37985a1c-1314-465f-b5fd-2e93bf474c75
+  - Booking: ตัวอย่าง https://YOUR_SUBDOMAIN.n8n.cloud/webhook/confirm-booking
 
 ---
 
@@ -79,16 +83,23 @@
 - PostgreSQL Database
 - n8n (สำหรับรัน Workflow)
 
-### 2. Environment Variables (.env)
-สร้างไฟล์ `.env` ในโฟลเดอร์ `backend/` โดยมีการตั้งค่าหลักๆ เช่น:
+### 2. Environment Variables
+- Local Development (`backend/.env`):
 ```env
 PORT=5000
 DATABASE_URL=postgresql://user:pass@localhost:5432/dbname
 JWT_SECRET=your_secret_key
-# n8n Configuration
-N8N_WEBHOOK_URL=http://localhost:5678/webhook/chat
-N8N_SHEETS_WEBHOOK_URL=http://localhost:5678/webhook/booking
+N8N_SECRET=change_me
+N8N_WEBHOOK_URL=https://YOUR_SUBDOMAIN.n8n.cloud/webhook/37985a1c-1314-465f-b5fd-2e93bf474c75
+N8N_SHEETS_WEBHOOK_URL=https://YOUR_SUBDOMAIN.n8n.cloud/webhook/confirm-booking
+FRONTEND_ORIGINS=https://project-motorbike.vercel.app
 ```
+- Render (Backend):
+  - N8N_SECRET, N8N_WEBHOOK_URL, N8N_SHEETS_WEBHOOK_URL, FRONTEND_ORIGINS
+  - กด Save, rebuild and deploy ให้ค่าใหม่มีผล
+- Supabase (Production):
+  - ใช้ค่า `DATABASE_URL` ที่ Supabase ให้มา (รูปแบบตัวอย่าง)
+  - `postgresql://postgres:<YOUR_PASSWORD>@db.<PROJECT_ID>.supabase.co:5432/postgres?sslmode=require`
 
 ### 3. การรันโปรเจกต์
 ใช้คำสั่งเดียวเพื่อรันทั้ง Backend และ Frontend พร้อมกัน:
@@ -115,3 +126,59 @@ motorbike_project/
 │   └── src/contexts/       # Global State (AuthContext)
 └── package.json            # Project scripts & dependencies
 ```
+
+---
+
+## 🔌 API หลัก (Backend Endpoints)
+- Authentication: `/api/auth` ดูที่ [auth.js](file:///c:/motorbike_project/backend/routes/auth.js)
+- Users: `/api/users` ดูที่ [users.js](file:///c:/motorbike_project/backend/routes/users.js)
+- Services: `/api/services` ดูที่ [services.js](file:///c:/motorbike_project/backend/routes/services.js)
+- Bookings:
+  - สร้าง/อ่าน/แก้สถานะ: `/api/bookings` ดูที่ [bookings.js](file:///c:/motorbike_project/backend/routes/bookings.js)
+  - ลบการจองทั้งหมดของผู้ใช้ และรี sequence ID: `DELETE /api/bookings/user/:userId` (admin only)
+- Notifications: `/api/notifications`
+- Dashboard: `/api/dashboard` ดูที่ [dashboard.js](file:///c:/motorbike_project/backend/routes/dashboard.js)
+- Chat AI: `/api/chat` ดูที่ [chat.js](file:///c:/motorbike_project/backend/routes/chat.js)
+
+---
+
+## 🗃 โครงสร้างฐานข้อมูล (สำคัญ)
+- ตารางหลัก:
+  - `users`, `vehicles`, `services`, `parts`, `bookings`, `booking_services`, `booking_parts`, `notifications`, `transactions`
+- ตัวอย่าง schema ดูที่ [schema.sql](file:///c:/motorbike_project/backend/config/schema.sql)
+- จุดเด่น:
+  - ใช้ `SERIAL` สำหรับ primary key และตั้งค่า index ที่จำเป็น
+  - ใช้ `ON DELETE CASCADE` ในตารางความสัมพันธ์ของ booking
+
+---
+
+## 🔐 ความปลอดภัย (Security)
+- JWT ผ่าน header `x-auth-token` ตรวจใน [auth middleware](file:///c:/motorbike_project/backend/middleware/auth.js)
+- CORS อนุญาต Vercel และ localhost ตามที่ตั้งค่าใน [server.js](file:///c:/motorbike_project/backend/server.js)
+- Webhook ไป n8n Cloud ส่ง `X-N8N-SECRET` จาก `process.env.N8N_SECRET`
+- แนะนำเปลี่ยน `N8N_SECRET` เป็นค่าสุ่มที่แข็งแรงก่อนใช้งานจริง
+
+---
+
+## ☁️ การดีพลอย (Deployment)
+- Frontend: Vercel (NEXT_PUBLIC_API_URL ชี้ไป Render)
+- Backend: Render (ตั้ง Environment Variables ให้ครบ)
+- Automation: n8n Cloud (ใช้ Production URL แบบ https)
+- Database: Supabase (PostgreSQL) เชื่อมต่อผ่าน `DATABASE_URL`
+- Storage & Logging: Google Drive / Google Sheets ผ่าน n8n
+
+---
+
+## ✅ การทดสอบระบบ
+- Chat:
+  - ส่งข้อความจากหน้าเว็บ → Backend → n8n Cloud → ตอบกลับ
+- Booking:
+  - Admin เปลี่ยนสถานะเป็น `confirmed` → Backend ยิงไป n8n Cloud → Drive Upload → Sheets Append
+- ตรวจผล:
+  - Render Logs, n8n Executions, แถวใหม่ใน Google Sheet และไฟล์ใน Drive
+
+---
+
+## ℹ️ หมายเหตุการใช้งาน
+- Webhook ของ n8n Cloud รองรับ `POST` เท่านั้น
+- ถ้าแก้ Production URL ของ n8n ให้เปลี่ยนค่าที่ Render และ `.env` ให้ตรงกัน

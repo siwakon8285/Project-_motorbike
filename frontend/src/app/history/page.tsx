@@ -13,6 +13,8 @@ import jsPDF from 'jspdf';
 
 interface ServiceHistory {
   id: number;
+  user_id?: number;
+  username?: string;
   vehicle_brand: string;
   vehicle_model: string;
   vehicle_license_plate: string;
@@ -41,6 +43,8 @@ export default function HistoryPage() {
   const { user, loading: authLoading } = useAuth();
   const [history, setHistory] = useState<ServiceHistory[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [search, setSearch] = useState('');
 
   const fetchHistory = useCallback(async () => {
     try {
@@ -260,20 +264,100 @@ export default function HistoryPage() {
             <p className="text-sm text-gray-500 mt-1">
               {user?.role === 'customer' 
                 ? 'ดูรายการซ่อมและสถานะการจองทั้งหมดของคุณ' 
-                : 'ดูบันทึกการซ่อมทั้งหมด'}
+                : selectedUserId 
+                  ? 'ดูประวัติการใช้บริการของลูกค้าที่เลือก'
+                  : 'เลือกผู้ใช้เพื่อดูประวัติการใช้บริการ'}
             </p>
           </div>
 
-          {/* History List */}
+          {(['admin', 'mechanic'].includes(user?.role || '') && selectedUserId === null) ? (
+            <div className="bg-white rounded-lg shadow">
+              <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+                <input
+                  className="w-full md:w-96 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  placeholder="ค้นหาชื่อ/อีเมล/เบอร์โทร"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              <div className="divide-y divide-gray-200">
+                {(() => {
+                  const groups: Record<string, { user_id: number; name: string; email?: string; phone?: string; count: number; total: number }> = {};
+                  history.forEach((r) => {
+                    const uid = r.user_id || 0;
+                    const key = String(uid);
+                    const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.username || r.email || `User #${uid}`;
+                    const email = r.email;
+                    const phone = r.phone;
+                    if (!groups[key]) {
+                      groups[key] = { user_id: uid, name, email, phone, count: 0, total: 0 };
+                    }
+                    groups[key].count += 1;
+                  groups[key].total += Number(r.total_price || 0);
+                  });
+                  let list = Object.values(groups);
+                  if (search.trim()) {
+                    const s = search.toLowerCase();
+                    list = list.filter(g =>
+                      (g.name || '').toLowerCase().includes(s) ||
+                      (g.email || '').toLowerCase().includes(s) ||
+                      (g.phone || '').toLowerCase().includes(s)
+                    );
+                  }
+                  if (list.length === 0) {
+                    return (
+                      <div className="px-6 py-12 text-center">
+                        <History className="w-12 h-12 mx-auto text-gray-300 mb-4" />
+                        <p className="text-gray-500">ไม่พบผู้ใช้ตามเงื่อนไข</p>
+                      </div>
+                    );
+                  }
+                  list.sort((a, b) => a.name.localeCompare(b.name, 'th'));
+                  return list.map(g => (
+                    <div key={g.user_id} className="p-6 flex items-center justify-between">
+                      <div className="flex-1">
+                        <p className="text-base font-medium text-gray-900">{g.name}</p>
+                        <p className="text-sm text-gray-500">{g.email || '-'}</p>
+                        <p className="text-sm text-gray-500">{g.phone || '-'}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-gray-600">จำนวนรายการ: <span className="font-semibold">{g.count}</span></p>
+                        <button
+                          className="mt-2 inline-flex items-center px-3 py-2 text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
+                          onClick={() => setSelectedUserId(g.user_id)}
+                        >
+                          ดูประวัติ
+                        </button>
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+            </div>
+          ) : (
           <div className="bg-white rounded-lg shadow">
+            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+              {['admin', 'mechanic'].includes(user?.role || '') ? (
+                <button
+                  className="inline-flex items-center px-3 py-2 text-sm font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200"
+                  onClick={() => setSelectedUserId(null)}
+                >
+                  กลับไปหน้ารายชื่อผู้ใช้
+                </button>
+              ) : null}
+            </div>
             <div className="divide-y divide-gray-200">
-              {history.length === 0 ? (
+              {(
+                user?.role === 'customer' 
+                  ? history 
+                  : history.filter(r => r.user_id === selectedUserId)
+                ).length === 0 ? (
                 <div className="px-6 py-12 text-center">
                   <History className="w-12 h-12 mx-auto text-gray-300 mb-4" />
                   <p className="text-gray-500">ไม่พบประวัติการใช้บริการ</p>
                 </div>
               ) : (
-                history.map((record) => (
+                (user?.role === 'customer' ? history : history.filter(r => r.user_id === selectedUserId)).map((record) => (
                   <div key={record.id} className="p-6">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -438,6 +522,7 @@ export default function HistoryPage() {
               )}
             </div>
           </div>
+          )}
       </div>
     </ProtectedRoute>
   );

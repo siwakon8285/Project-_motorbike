@@ -189,7 +189,7 @@ export default function Dashboard() {
               </p>
             </div>
             <Link
-              href="/estimate"
+              href="/bookings/new"
               prefetch={false}
               className="btn btn-primary inline-flex items-center gap-2 self-start"
             >
