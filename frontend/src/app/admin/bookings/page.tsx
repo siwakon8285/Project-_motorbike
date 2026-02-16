@@ -54,6 +54,17 @@ export default function AdminBookingsPage() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [editing, setEditing] = useState<Booking | null>(null);
+  const [editDate, setEditDate] = useState<string>('');
+  const [editTime, setEditTime] = useState<string>('');
+  const [editNotes, setEditNotes] = useState<string>('');
+  const [editPrice, setEditPrice] = useState<string>('');
+  const [saving, setSaving] = useState<boolean>(false);
+  const halfHourSlots = Array.from({ length: 18 }, (_, i) => {
+    const h = 9 + Math.floor(i / 2);
+    const m = i % 2 === 0 ? '00' : '30';
+    return `${h.toString().padStart(2, '0')}:${m}`;
+  });
 
   const fetchBookings = useCallback(async () => {
     try {
@@ -348,6 +359,25 @@ export default function AdminBookingsPage() {
                           <p className="text-xl font-bold text-primary-600">฿{booking.total_price.toLocaleString()}</p>
                         </div>
                       )}
+                      <div className="mt-4 md:mt-6 flex md:justify-end">
+                        <button
+                          className="px-3 py-2 text-sm rounded-lg bg-primary-600 text-white hover:bg-primary-700"
+                          onClick={() => {
+                            setEditing(booking);
+                            try {
+                              const d = new Date(booking.booking_date);
+                              setEditDate(d.toISOString().slice(0,10));
+                            } catch {
+                              setEditDate('');
+                            }
+                            setEditTime(booking.booking_time.substring(0,5));
+                            setEditNotes(booking.notes || '');
+                            setEditPrice(String(booking.total_price || 0));
+                          }}
+                        >
+                          แก้ไขรายละเอียด
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -355,6 +385,101 @@ export default function AdminBookingsPage() {
             })
           )}
         </div>
+
+        {editing && (
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl w-full max-w-lg shadow-xl">
+              <div className="p-5 border-b border-gray-100">
+                <h3 className="text-lg font-bold text-gray-900">แก้ไขการจอง #{editing.id}</h3>
+                <p className="text-sm text-gray-500">ลูกค้า: {editing.first_name} {editing.last_name} • รถ: {editing.vehicle_brand} {editing.vehicle_model} • {editing.vehicle_license_plate}</p>
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600">วันที่</label>
+                    <input
+                      type="date"
+                      className="mt-1 w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      value={editDate}
+                      onChange={(e) => setEditDate(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600">เวลา</label>
+                    <select
+                      className="mt-1 w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      value={editTime}
+                      onChange={(e) => setEditTime(e.target.value)}
+                    >
+                      {halfHourSlots.map(t => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600">ราคา (บาท)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      className="mt-1 w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      value={editPrice}
+                      onChange={(e) => setEditPrice(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600">หมายเหตุ</label>
+                  <textarea
+                    className="mt-1 w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    rows={4}
+                    value={editNotes}
+                    onChange={(e) => setEditNotes(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="p-5 border-t border-gray-100 flex items-center justify-end gap-3">
+                <button
+                  className="px-3 py-2 rounded-lg text-sm bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  onClick={() => { setEditing(null); }}
+                  disabled={saving}
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  className={`px-3 py-2 rounded-lg text-sm bg-primary-600 text-white hover:bg-primary-700 ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  onClick={async () => {
+                    try {
+                      setSaving(true);
+                      await axios.put(`/api/bookings/${editing.id}`, {
+                        bookingDate: editDate,
+                        bookingTime: editTime,
+                        notes: editNotes,
+                        totalPrice: Number(editPrice)
+                      });
+                      setBookings(prev => prev.map(b => b.id === editing.id ? {
+                        ...b,
+                        booking_date: editDate,
+                        booking_time: editTime,
+                        notes: editNotes,
+                        total_price: Number(editPrice)
+                      } : b));
+                      toast.success('บันทึกการแก้ไขเรียบร้อย');
+                      setEditing(null);
+                    } catch (err: any) {
+                      toast.error(err?.response?.data?.message || 'ไม่สามารถบันทึกการแก้ไขได้');
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                  disabled={saving}
+                >
+                  บันทึกการแก้ไข
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </ProtectedRoute>
   );

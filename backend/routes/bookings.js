@@ -194,6 +194,77 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
+// Update booking details
+router.put('/:id', auth, async (req, res) => {
+  try {
+    const { bookingDate, bookingTime, notes, totalPrice } = req.body;
+    const id = parseInt(req.params.id);
+    const result = await pool.query('SELECT * FROM bookings WHERE id = $1', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+    const booking = result.rows[0];
+    if (req.user.role === 'customer' && booking.user_id !== req.user.id) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    if (typeof totalPrice !== 'undefined' && !['admin', 'mechanic'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Only admin or mechanic can edit price' });
+    }
+    const fields = [];
+    const values = [];
+    let idx = 1;
+    const normalizeDate = (d) => {
+      try {
+        if (!d) return null;
+        if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+        return new Date(d).toISOString().slice(0,10);
+      } catch {
+        return null;
+      }
+    };
+    if (bookingDate) {
+      const nd = normalizeDate(bookingDate);
+      if (!nd) return res.status(400).json({ message: 'Invalid booking date' });
+      fields.push(`booking_date = $${idx++}`); values.push(nd);
+    }
+    if (bookingTime) {
+      fields.push(`booking_time = $${idx++}`); values.push(bookingTime);
+    }
+    if (typeof notes !== 'undefined') {
+      fields.push(`notes = $${idx++}`); values.push(notes);
+    }
+    if (typeof totalPrice !== 'undefined') {
+      const n = Number(totalPrice);
+      if (!Number.isFinite(n) || n < 0) {
+        return res.status(400).json({ message: 'Invalid total price' });
+      }
+      fields.push(`total_price = $${idx++}`); values.push(n);
+    }
+    if (fields.length === 0) {
+      return res.status(400).json({ message: 'No fields to update' });
+    }
+    if (bookingDate || bookingTime) {
+      const checkDate = normalizeDate(bookingDate || booking.booking_date);
+      const checkTime = (bookingTime || booking.booking_time).toString().substring(0,5);
+      const conflict = await pool.query(
+        "SELECT id FROM bookings WHERE booking_date = $1 AND booking_time::time = $2::time AND status != $3 AND id != $4",
+        [checkDate, `${checkTime}:00`, 'cancelled', id]
+      );
+      if (conflict.rows.length > 0) {
+        return res.status(400).json({ message: 'This time slot is already booked' });
+      }
+    }
+    const update = await pool.query(
+      `UPDATE bookings SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = $${idx} RETURNING *`,
+      [...values, id]
+    );
+    res.json(update.rows[0]);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
 // Create booking
 router.post('/', auth, upload.single('slipImage'), async (req, res) => {
   const client = await pool.connect();
