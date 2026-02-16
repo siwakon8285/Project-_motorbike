@@ -18,7 +18,11 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ message: 'Message is required' });
     }
 
-    if (!N8N_WEBHOOK_URL || N8N_WEBHOOK_URL === 'YOUR_N8N_WEBHOOK_URL_HERE') {
+    if (
+      !N8N_WEBHOOK_URL ||
+      N8N_WEBHOOK_URL === 'YOUR_N8N_WEBHOOK_URL_HERE' ||
+      /yourdomain\.com/i.test(N8N_WEBHOOK_URL)
+    ) {
       console.warn('N8N Webhook URL is not configured');
       // Mock response for testing if n8n is not set up
       return res.json({ 
@@ -32,7 +36,7 @@ router.post('/', async (req, res) => {
       userId,
       username,
       timestamp: new Date().toISOString()
-    });
+    }, { timeout: 15000 });
 
     // Debug logging
     const fs = require('fs');
@@ -77,10 +81,8 @@ router.post('/', async (req, res) => {
         console.error('N8N Response Data:', error.response.data);
         console.error('N8N Response Status:', error.response.status);
     }
-    res.status(500).json({ 
-      message: 'Failed to communicate with AI service',
-      error: error.message 
-    });
+    const fallback = 'ไม่สามารถเชื่อมต่อบริการ AI ได้ กรุณาตรวจสอบค่า N8N_WEBHOOK_URL หรือสถานะเซิร์ฟเวอร์ n8n';
+    res.json({ reply: fallback });
   }
 });
 

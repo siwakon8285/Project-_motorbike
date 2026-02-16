@@ -31,7 +31,7 @@ function EstimatePage() {
   const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({});
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://motorbike-backend-6cjx.onrender.com';
 
   // Real-time updates
   useEffect(() => {
