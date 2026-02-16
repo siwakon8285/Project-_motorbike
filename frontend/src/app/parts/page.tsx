@@ -72,7 +72,11 @@ export default function Parts() {
 
   // Real-time updates with Socket.IO
   useEffect(() => {
-    const socket = io(API_URL);
+    const socket = io(API_URL, {
+      path: '/socket.io',
+      transports: ['websocket'],
+      withCredentials: true
+    });
 
     socket.on('parts_update', (event: any) => {
       // If no event data or type is 'refresh', fetch all parts

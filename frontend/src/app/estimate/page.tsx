@@ -35,7 +35,11 @@ function EstimatePage() {
 
   // Real-time updates
   useEffect(() => {
-    const socket = io(API_URL);
+    const socket = io(API_URL, {
+      path: '/socket.io',
+      transports: ['websocket'],
+      withCredentials: true
+    });
 
     socket.on('parts_update', () => {
       setRefreshTrigger(prev => prev + 1);
