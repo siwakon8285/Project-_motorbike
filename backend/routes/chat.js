@@ -36,7 +36,10 @@ router.post('/', async (req, res) => {
       userId,
       username,
       timestamp: new Date().toISOString()
-    }, { timeout: 15000 });
+    }, { 
+      timeout: 15000,
+      headers: process.env.N8N_SECRET ? { 'X-N8N-SECRET': process.env.N8N_SECRET } : undefined
+    });
 
     // Debug logging
     const fs = require('fs');

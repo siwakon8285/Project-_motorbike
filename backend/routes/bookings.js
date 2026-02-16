@@ -514,7 +514,8 @@ router.put('/:id/status', auth, async (req, res) => {
              // Send data to n8n (fire and forget, but await to ensure it's sent)
              await axios.post(process.env.N8N_SHEETS_WEBHOOK_URL, bookingData, {
                maxContentLength: Infinity,
-               maxBodyLength: Infinity
+               maxBodyLength: Infinity,
+               headers: process.env.N8N_SECRET ? { 'X-N8N-SECRET': process.env.N8N_SECRET } : undefined
              });
              console.log(`[n8n] Sent booking ${req.params.id} to n8n webhook successfully`);
           } else {
