@@ -37,7 +37,6 @@ function EstimatePage() {
   useEffect(() => {
     const socket = io(API_URL, {
       path: '/socket.io',
-      transports: ['websocket'],
       withCredentials: true
     });
 

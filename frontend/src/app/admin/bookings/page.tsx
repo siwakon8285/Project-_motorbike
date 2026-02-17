@@ -18,7 +18,8 @@ import {
   Clock, 
   Loader2,
   Wrench,
-  ChevronDown
+  ChevronDown,
+  AlertTriangle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -40,6 +41,7 @@ interface Booking {
   status: string;
   total_price: number;
   notes?: string;
+  cancel_request_note?: string;
   services: {
     id: number;
     name: string;
@@ -65,6 +67,16 @@ export default function AdminBookingsPage() {
     const m = i % 2 === 0 ? '00' : '30';
     return `${h.toString().padStart(2, '0')}:${m}`;
   });
+  const handleDeleteBooking = async (bookingId: number) => {
+    if (!confirm('ยืนยันลบประวัติรายการนี้?')) return;
+    try {
+      await axios.delete(`/api/bookings/${bookingId}`);
+      setBookings(prev => prev.filter(b => b.id !== bookingId));
+      toast.success('ลบประวัติรายการนี้เรียบร้อยแล้ว');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'ไม่สามารถลบประวัติรายการนี้ได้');
+    }
+  };
 
   const fetchBookings = useCallback(async () => {
     try {
@@ -149,6 +161,12 @@ export default function AdminBookingsPage() {
           select: 'bg-red-50 text-red-700 border-red-200 hover:border-red-300',
           badge: 'bg-red-100 text-red-800'
         };
+      case 'cancel_requested':
+        return {
+          strip: 'bg-orange-500',
+          select: 'bg-orange-50 text-orange-700 border-orange-200 hover:border-orange-300',
+          badge: 'bg-orange-100 text-orange-800'
+        };
       default:
         return {
           strip: 'bg-gray-400',
@@ -224,6 +242,7 @@ export default function AdminBookingsPage() {
                   <option value="in_progress">🔧 กำลังซ่อม</option>
                   <option value="completed">🏁 เสร็จสิ้น</option>
                   <option value="cancelled">❌ ยกเลิก</option>
+                  <option value="cancel_requested">🟠 รอยืนยันยกเลิก</option>
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
               </div>
@@ -315,6 +334,15 @@ export default function AdminBookingsPage() {
                       </div>
 
                       {/* Notes */}
+                      {booking.cancel_request_note && (
+                        <div className="mt-3 text-sm bg-red-50 text-red-800 p-3 rounded-lg border border-red-100 flex items-start gap-2.5">
+                          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 opacity-70" />
+                          <span className="leading-relaxed">
+                            <span className="font-semibold">คำขอยกเลิกโดยลูกค้า: </span>
+                            {booking.cancel_request_note}
+                          </span>
+                        </div>
+                      )}
                       {booking.notes && (
                         <div className="mt-3 text-sm bg-yellow-50 text-yellow-800 p-3 rounded-lg border border-yellow-100 flex items-start gap-2.5">
                           <ClipboardList className="w-4 h-4 mt-0.5 shrink-0 opacity-70" />
@@ -376,6 +404,12 @@ export default function AdminBookingsPage() {
                           }}
                         >
                           แก้ไขรายละเอียด
+                        </button>
+                        <button
+                          className="ml-2 px-3 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700"
+                          onClick={() => handleDeleteBooking(booking.id)}
+                        >
+                          ลบรายการนี้
                         </button>
                       </div>
                     </div>

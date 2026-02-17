@@ -29,7 +29,17 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-axios.defaults.baseURL = process.env.NEXT_PUBLIC_API_URL || 'https://motorbike-backend-6cjx.onrender.com';
+const computeBaseURL = () => {
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return 'http://localhost:5000';
+    }
+  }
+  return 'https://motorbike-backend-6cjx.onrender.com';
+};
+axios.defaults.baseURL = computeBaseURL();
 axios.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('token');

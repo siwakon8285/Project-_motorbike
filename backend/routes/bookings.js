@@ -47,6 +47,8 @@ const mergeServicesAndParts = (rows) => {
     // Extract custom service from notes
     const customServiceMatch = row.notes ? row.notes.match(/บริการที่ต้องการ: (.*?)(?:\n|$)/) : null;
     const customService = customServiceMatch ? customServiceMatch[1] : null;
+    const cancelRequestMatch = row.notes ? row.notes.match(/คำขอยกเลิกโดยลูกค้า:\s*(.*?)(?:\n|$)/) : null;
+    const cancelRequestNote = cancelRequestMatch ? cancelRequestMatch[1] : null;
 
     let allServices = [...services, ...parts];
 
@@ -59,6 +61,7 @@ const mergeServicesAndParts = (rows) => {
     return {
       ...row,
       services: allServices,
+      cancel_request_note: cancelRequestNote || undefined,
       services_data: undefined, // cleanup
       parts_data: undefined // cleanup
     };
@@ -258,6 +261,31 @@ router.put('/:id', auth, async (req, res) => {
       `UPDATE bookings SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = $${idx} RETURNING *`,
       [...values, id]
     );
+    try {
+      const prevNotes = booking.notes || '';
+      const newNotes = typeof notes !== 'undefined' ? notes : prevNotes;
+      const hadCancelReq = /คำขอยกเลิกโดยลูกค้า:\s*/.test(prevNotes);
+      const hasCancelReqNow = /คำขอยกเลิกโดยลูกค้า:\s*/.test(newNotes);
+      if (!hadCancelReq && hasCancelReqNow) {
+        const adminsRes = await pool.query("SELECT id FROM users WHERE role = 'admin'");
+        const admins = adminsRes.rows.map(r => r.id);
+        for (const adminId of admins) {
+          await pool.query(
+            `INSERT INTO notifications (user_id, title, message, type, related_booking_id)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [
+              adminId,
+              'คำขอยกเลิกจากลูกค้า',
+              `ลูกค้าขอยกเลิกการจอง #${booking.id} วันที่ ${booking.booking_date} เวลา ${booking.booking_time}`,
+              'booking',
+              booking.id
+            ]
+          );
+        }
+      }
+    } catch (notifyErr) {
+      console.warn('[notify] admin cancel request notification (notes) failed:', notifyErr.message);
+    }
     res.json(update.rows[0]);
   } catch (err) {
     console.error(err.message);
@@ -448,8 +476,18 @@ router.post('/', auth, upload.single('slipImage'), async (req, res) => {
 // Update booking status
 router.put('/:id/status', auth, async (req, res) => {
   try {
-    const { status } = req.body;
-    const validStatuses = ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled'];
+    let { status } = req.body;
+    const synonyms = {
+      'cancel': 'cancelled',
+      'cancel-requested': 'cancel_requested',
+      'request_cancel': 'cancel_requested',
+      'in-progress': 'in_progress'
+    };
+    if (typeof status === 'string') {
+      const lower = status.toLowerCase();
+      status = synonyms[lower] || lower;
+    }
+    const validStatuses = ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'cancel_requested'];
 
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: 'Invalid status' });
@@ -470,6 +508,21 @@ router.put('/:id/status', auth, async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
+    // Only admin/mechanic can set final cancellation,
+    // except customers can cancel immediately when current status is 'pending'
+    if (req.user.role === 'customer' && status === 'cancelled') {
+      if (booking.status !== 'pending') {
+        return res.status(403).json({ message: 'Require admin confirmation to cancel' });
+      }
+    }
+
+    // Customers can request cancellation only if not already completed/cancelled
+    if (status === 'cancel_requested') {
+      if (booking.status === 'completed' || booking.status === 'cancelled') {
+        return res.status(400).json({ message: 'Cannot request cancellation for completed/cancelled booking' });
+      }
+    }
+
     const updateResult = await pool.query(
       'UPDATE bookings SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
       [status, req.params.id]
@@ -480,7 +533,8 @@ router.put('/:id/status', auth, async (req, res) => {
       confirmed: 'การจองของคุณได้รับการยืนยันแล้ว',
       in_progress: 'รถของคุณกำลังอยู่ระหว่างการซ่อม',
       completed: 'การซ่อมเสร็จสิ้นแล้ว! คุณสามารถมารับรถได้เลย',
-      cancelled: 'การจองของคุณถูกยกเลิก'
+      cancelled: 'การจองของคุณถูกยกเลิก',
+      cancel_requested: 'ส่งคำขอยกเลิกเรียบร้อยแล้ว รอแอดมินยืนยัน'
     };
 
     if (statusMessages[status]) {
@@ -495,6 +549,39 @@ router.put('/:id/status', auth, async (req, res) => {
           booking.id
         ]
       );
+    }
+    if (status === 'cancel_requested') {
+      try {
+        const adminsRes = await pool.query("SELECT id FROM users WHERE role = 'admin'");
+        const admins = adminsRes.rows.map(r => r.id);
+        for (const adminId of admins) {
+          await pool.query(
+            `INSERT INTO notifications (user_id, title, message, type, related_booking_id)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [
+              adminId,
+              'คำขอยกเลิกจากลูกค้า',
+              `ลูกค้าขอยกเลิกการจอง #${booking.id} วันที่ ${booking.booking_date} เวลา ${booking.booking_time}`,
+              'booking',
+              booking.id
+            ]
+          );
+        }
+      } catch (notifyErr) {
+        console.warn('[notify] admin cancel request notification failed:', notifyErr.message);
+      }
+    }
+
+    if (status === 'completed' && req.io) {
+      try {
+        req.io.emit('booking_completed', {
+          bookingId: booking.id,
+          userId: booking.user_id,
+          totalPrice: booking.total_price
+        });
+      } catch (emitErr) {
+        console.warn('[socket] emit booking_completed failed:', emitErr.message);
+      }
     }
 
     // Trigger n8n webhook if status is confirmed
@@ -607,6 +694,35 @@ router.put('/:id/status', auth, async (req, res) => {
   }
 });
 
+// Delete a single booking by ID (admin only)
+router.delete('/:id', auth, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    if (req.user.role !== 'admin') {
+      client.release();
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+    const bookingId = parseInt(req.params.id);
+    const exists = await client.query('SELECT id FROM bookings WHERE id = $1', [bookingId]);
+    if (exists.rows.length === 0) {
+      client.release();
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+    await client.query('BEGIN');
+    await client.query('DELETE FROM booking_services WHERE booking_id = $1', [bookingId]);
+    await client.query('DELETE FROM booking_parts WHERE booking_id = $1', [bookingId]);
+    await client.query('DELETE FROM notifications WHERE related_booking_id = $1 AND type = $2', [bookingId, 'booking']);
+    await client.query('DELETE FROM bookings WHERE id = $1', [bookingId]);
+    await client.query('COMMIT');
+    client.release();
+    return res.json({ message: 'Booking deleted' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    client.release();
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Get available time slots
 router.get('/slots/available', async (req, res) => {
   try {
@@ -657,22 +773,211 @@ router.delete('/user/:userId', auth, async (req, res) => {
       'DELETE FROM bookings WHERE user_id = $1 RETURNING id',
       [userId]
     );
-    const maxIdRes = await client.query('SELECT COALESCE(MAX(id), 0) AS max_id FROM bookings');
-    const maxId = parseInt(maxIdRes.rows[0].max_id || 0);
-    await client.query(
-      "SELECT setval(pg_get_serial_sequence('bookings','id'), $1, true)",
-      [Math.max(maxId, 1)]
-    );
+    const remainingRes = await client.query('SELECT COUNT(*)::int AS cnt FROM bookings');
+    const remaining = remainingRes.rows[0].cnt || 0;
+    if (remaining === 0) {
+      await client.query("SELECT setval(pg_get_serial_sequence('bookings','id'), 1, false)");
+    } else {
+      const maxIdRes = await client.query('SELECT COALESCE(MAX(id), 0) AS max_id FROM bookings');
+      const maxId = parseInt(maxIdRes.rows[0].max_id || 0);
+      await client.query(
+        "SELECT setval(pg_get_serial_sequence('bookings','id'), $1, true)",
+        [Math.max(maxId, 1)]
+      );
+    }
     await client.query('COMMIT');
     client.release();
     return res.json({
       deletedBookings: deleteBookings.rowCount,
       deletedNotifications: deleteNotifications.rowCount,
-      nextBookingId: maxId + 1
+      nextBookingId: remaining === 0 ? 1 : undefined
     });
   } catch (err) {
     await client.query('ROLLBACK');
     client.release();
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Delete all bookings by user email (admin only) and reset sequence appropriately
+router.delete('/user/by-email', auth, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    if (req.user.role !== 'admin') {
+      client.release();
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+    const { email } = req.query;
+    if (!email) {
+      client.release();
+      return res.status(400).json({ message: 'Email is required' });
+    }
+    const userRes = await client.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [email]);
+    if (userRes.rows.length === 0) {
+      client.release();
+      return res.status(404).json({ message: 'User not found' });
+    }
+    const userId = userRes.rows[0].id;
+    await client.query('BEGIN');
+    const deleteNotifications = await client.query(
+      "DELETE FROM notifications WHERE user_id = $1 AND type = 'booking' RETURNING id",
+      [userId]
+    );
+    const deleteBookings = await client.query(
+      'DELETE FROM bookings WHERE user_id = $1 RETURNING id',
+      [userId]
+    );
+    const remainingRes = await client.query('SELECT COUNT(*)::int AS cnt FROM bookings');
+    const remaining = remainingRes.rows[0].cnt || 0;
+    if (remaining === 0) {
+      await client.query("SELECT setval(pg_get_serial_sequence('bookings','id'), 1, false)");
+    } else {
+      const maxIdRes = await client.query('SELECT COALESCE(MAX(id), 0) AS max_id FROM bookings');
+      const maxId = parseInt(maxIdRes.rows[0].max_id || 0);
+      await client.query(
+        "SELECT setval(pg_get_serial_sequence('bookings','id'), $1, true)",
+        [Math.max(maxId, 1)]
+      );
+    }
+    await client.query('COMMIT');
+    client.release();
+    return res.json({
+      email,
+      deletedBookings: deleteBookings.rowCount,
+      deletedNotifications: deleteNotifications.rowCount,
+      sequenceResetTo: remaining === 0 ? 1 : 'MAX(id)+1'
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    client.release();
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Customer-friendly cancel endpoint
+router.put('/:id/cancel', auth, async (req, res) => {
+  try {
+    const bookingRes = await pool.query('SELECT * FROM bookings WHERE id = $1', [req.params.id]);
+    if (bookingRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+    const booking = bookingRes.rows[0];
+    if (req.user.role === 'customer' && booking.user_id !== req.user.id) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    if (booking.status === 'completed' || booking.status === 'cancelled') {
+      return res.status(400).json({ message: 'Cannot cancel completed/cancelled booking' });
+    }
+    const reason = (req.body && typeof req.body.reason === 'string') ? req.body.reason.trim() : '';
+    let newNotes = booking.notes || '';
+    if (reason) {
+      const line = `คำขอยกเลิกโดยลูกค้า: ${reason}`;
+      newNotes = newNotes ? `${newNotes}\n${line}` : line;
+    }
+    let nextStatus = 'cancel_requested';
+    if (req.user.role === 'customer' && booking.status === 'pending') {
+      nextStatus = 'cancelled';
+    } else if (['admin', 'mechanic'].includes(req.user.role)) {
+      nextStatus = 'cancelled';
+    }
+    let update;
+    try {
+      if (reason) {
+        update = await pool.query(
+          'UPDATE bookings SET status = $1, notes = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *',
+          [nextStatus, newNotes, req.params.id]
+        );
+      } else {
+        update = await pool.query(
+          'UPDATE bookings SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+          [nextStatus, req.params.id]
+        );
+      }
+    } catch (e) {
+      // Fallback for databases that haven't added 'cancel_requested' to CHECK constraint (23514)
+      if (e && e.code === '23514' && nextStatus === 'cancel_requested') {
+        if (reason) {
+          await pool.query(
+            'UPDATE bookings SET notes = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+            [newNotes, req.params.id]
+          );
+        }
+        const current = await pool.query('SELECT * FROM bookings WHERE id = $1', [req.params.id]);
+        update = { rows: [current.rows[0]] };
+      } else {
+        throw e;
+      }
+    }
+    const messageMap = {
+      cancelled: req.user.role === 'customer' ? 'ยกเลิกเรียบร้อย' : 'ยกเลิกโดยแอดมิน',
+      cancel_requested: 'ส่งคำขอยกเลิกแล้ว รอแอดมินยืนยัน'
+    };
+    await pool.query(
+      `INSERT INTO notifications (user_id, title, message, type, related_booking_id) 
+       VALUES ($1, $2, $3, $4, $5)`,
+      [
+        booking.user_id,
+        'อัปเดตสถานะการจอง',
+        messageMap[nextStatus],
+        'booking',
+        booking.id
+      ]
+    );
+    if (nextStatus === 'cancel_requested') {
+      try {
+        const adminsRes = await pool.query("SELECT id FROM users WHERE role = 'admin'");
+        const admins = adminsRes.rows.map(r => r.id);
+        for (const adminId of admins) {
+          await pool.query(
+            `INSERT INTO notifications (user_id, title, message, type, related_booking_id)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [
+              adminId,
+              'คำขอยกเลิกจากลูกค้า',
+              reason 
+                ? `ลูกค้าขอยกเลิกการจอง #${booking.id} วันที่ ${booking.booking_date} เวลา ${booking.booking_time} • เหตุผล: ${reason}`
+                : `ลูกค้าขอยกเลิกการจอง #${booking.id} วันที่ ${booking.booking_date} เวลา ${booking.booking_time}`,
+              'booking',
+              booking.id
+            ]
+          );
+        }
+        if (req.io) {
+          try { req.io.emit('notifications_update'); } catch (e) {}
+        }
+      } catch (notifyErr) {
+        console.warn('[notify] admin cancel request notification failed:', notifyErr.message);
+      }
+    }
+    // Also notify admins when a customer cancels a pending booking directly
+    if (nextStatus === 'cancelled' && req.user.role === 'customer') {
+      try {
+        const adminsRes = await pool.query("SELECT id FROM users WHERE role = 'admin'");
+        const admins = adminsRes.rows.map(r => r.id);
+        for (const adminId of admins) {
+          await pool.query(
+            `INSERT INTO notifications (user_id, title, message, type, related_booking_id)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [
+              adminId,
+              'ลูกค้ายกเลิกการจอง',
+              reason 
+                ? `ลูกค้ายกเลิกการจอง #${booking.id} วันที่ ${booking.booking_date} เวลา ${booking.booking_time} • เหตุผล: ${reason}`
+                : `ลูกค้ายกเลิกการจอง #${booking.id} วันที่ ${booking.booking_date} เวลา ${booking.booking_time}`,
+              'booking',
+              booking.id
+            ]
+          );
+        }
+        if (req.io) {
+          try { req.io.emit('notifications_update'); } catch (e) {}
+        }
+      } catch (notifyErr2) {
+        console.warn('[notify] admin pending-cancel notification failed:', notifyErr2.message);
+      }
+    }
+    return res.json(update.rows[0]);
+  } catch (err) {
     return res.status(500).json({ message: 'Server error' });
   }
 });

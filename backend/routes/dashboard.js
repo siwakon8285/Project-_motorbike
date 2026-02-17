@@ -124,7 +124,7 @@ router.get('/customer-stats', auth, async (req, res) => {
       ),
       pool.query(
         `SELECT COUNT(*) as upcoming FROM bookings 
-         WHERE user_id = $1 AND booking_date >= CURRENT_DATE AND status NOT IN ('cancelled', 'completed')`,
+         WHERE user_id = $1 AND booking_date >= CURRENT_DATE AND status NOT IN ('cancelled', 'completed', 'cancel_requested')`,
         [req.user.id]
       ),
       pool.query(

@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS bookings (
     booking_date DATE NOT NULL,
     booking_time TIME NOT NULL,
     total_price DECIMAL(10, 2) DEFAULT 0,
-    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'in_progress', 'completed', 'cancelled')),
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'cancel_requested')),
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

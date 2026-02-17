@@ -9,6 +9,7 @@ import { th } from 'date-fns/locale';
 import { Bell, Check, Trash2, Calendar, Wrench, DollarSign, Info, X } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
+import { io } from 'socket.io-client';
 
 interface Notification {
   id: number;
@@ -42,6 +43,9 @@ export default function Notifications() {
   const [selectedBooking, setSelectedBooking] = useState<BookingDetails | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loadingBooking, setLoadingBooking] = useState(false);
+  const [confirmingId, setConfirmingId] = useState<number | null>(null);
+  const [socketConnected, setSocketConnected] = useState(false);
+  const [pollingId, setPollingId] = useState<any>(null);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -49,6 +53,49 @@ export default function Notifications() {
       fetchUnreadCount();
     }
   }, [authLoading, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://motorbike-backend-6cjx.onrender.com';
+    let socket: any = null;
+    try {
+      socket = io(API_URL, { path: '/socket.io', withCredentials: true });
+      socket.on('connect', () => setSocketConnected(true));
+      socket.on('connect_error', () => setSocketConnected(false));
+      socket.on('disconnect', () => setSocketConnected(false));
+      socket.on('notifications_update', () => {
+        if (user?.role === 'admin') {
+          fetchNotifications();
+          fetchUnreadCount();
+        }
+      });
+    } catch {
+      setSocketConnected(false);
+    }
+    // Fallback polling when socket is not connected
+    const maybeStartPolling = () => {
+      // Always ensure some refresh in case no socket
+      const id = setInterval(() => {
+        if (user?.role === 'admin') {
+          fetchNotifications();
+          fetchUnreadCount();
+        }
+      }, 20000);
+      setPollingId(id);
+    };
+    // give socket few seconds to connect
+    const t = setTimeout(maybeStartPolling, 2500);
+
+    return () => {
+      clearTimeout(t);
+      // Clear any interval we created
+      if (pollingId) {
+        clearInterval(pollingId);
+        setPollingId(null);
+      }
+      if (socket) socket.disconnect();
+    };
+  }, [user]);
 
   const fetchNotifications = async () => {
     try {
@@ -137,6 +184,31 @@ export default function Notifications() {
       toast.error('ไม่สามารถโหลดข้อมูลการจองได้');
     } finally {
       setLoadingBooking(false);
+    }
+  };
+
+  const confirmCancellation = async (bookingId: number, notificationId?: number) => {
+    try {
+      setConfirmingId(notificationId || bookingId);
+      const res = await axios.put(`/api/bookings/${bookingId}/status`, { status: 'cancelled' });
+      // Mark notification as read if provided
+      if (notificationId) {
+        try {
+          await axios.put(`/api/notifications/${notificationId}/read`);
+          setNotifications(prev => prev.map(n => n.id === notificationId ? { ...n, is_read: true } : n));
+          fetchUnreadCount();
+        } catch {
+          // ignore mark read failure
+        }
+      }
+      // Update modal status if open on same booking
+      setSelectedBooking(prev => prev && prev.id === bookingId ? { ...prev, status: res.data?.status || 'cancelled' } : prev);
+      toast.success('ยืนยันการยกเลิกเรียบร้อย');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'ไม่สามารถยืนยันการยกเลิกได้';
+      toast.error(msg);
+    } finally {
+      setConfirmingId(null);
     }
   };
 
@@ -242,15 +314,28 @@ export default function Notifications() {
                             </button>
                           </div>
                         </div>
-                        {notification.related_booking_id && (
-                          <button
-                            onClick={() => handleViewBooking(notification.related_booking_id!)}
-                            disabled={loadingBooking}
-                            className="inline-flex items-center mt-3 text-sm text-primary-600 hover:text-primary-500 disabled:opacity-50"
-                          >
-                            {loadingBooking ? 'กำลังโหลด...' : 'ดูรายละเอียดการจอง'}
-                          </button>
-                        )}
+                        <div className="mt-3 flex items-center gap-3">
+                          {notification.related_booking_id && (
+                            <button
+                              onClick={() => handleViewBooking(notification.related_booking_id!)}
+                              disabled={loadingBooking}
+                              className="inline-flex items-center text-sm text-primary-600 hover:text-primary-500 disabled:opacity-50"
+                            >
+                              {loadingBooking ? 'กำลังโหลด...' : 'ดูรายละเอียดการจอง'}
+                            </button>
+                          )}
+                          {user?.role === 'admin' &&
+                            notification.related_booking_id &&
+                            notification.title?.includes('คำขอยกเลิก') && (
+                              <button
+                                onClick={() => confirmCancellation(notification.related_booking_id!, notification.id)}
+                                disabled={confirmingId === notification.id}
+                                className="inline-flex items-center text-sm px-3 py-1.5 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                              >
+                                {confirmingId === notification.id ? 'กำลังยืนยัน...' : 'ยืนยันยกเลิก'}
+                              </button>
+                            )}
+                        </div>
                       </div>
                     </div>
                   </div>

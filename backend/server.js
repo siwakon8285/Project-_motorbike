@@ -128,6 +128,8 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/services', require('./routes/services'));
 app.use('/api/bookings', require('./routes/bookings'));
+// Alias for clients calling without /api prefix
+app.use('/bookings', require('./routes/bookings'));
 app.use('/api/parts', require('./routes/parts'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/dashboard', require('./routes/dashboard'));

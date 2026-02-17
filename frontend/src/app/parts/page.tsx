@@ -70,33 +70,57 @@ export default function Parts() {
     }
   }, [authLoading, user, fetchParts]);
 
-  // Real-time updates with Socket.IO
+  // Real-time updates with Socket.IO (+ polling fallback)
   useEffect(() => {
-    const socket = io(API_URL, {
-      path: '/socket.io',
-      transports: ['websocket'],
-      withCredentials: true
-    });
+    let socket: any = null;
+    let pollId: any = null;
+    try {
+      socket = io(API_URL, {
+        path: '/socket.io',
+        withCredentials: true
+      });
 
-    socket.on('parts_update', (event: any) => {
-      // If no event data or type is 'refresh', fetch all parts
-      if (!event || event.type === 'refresh') {
-        fetchParts();
-        return;
+      socket.on('parts_update', (event: any) => {
+        // If no event data or type is 'refresh', fetch all parts
+        if (!event || event.type === 'refresh') {
+          fetchParts();
+          return;
+        }
+
+        if (event.type === 'create') {
+          setParts(prev => [...prev, event.data]);
+          toast.success(`เพิ่มอะไหล่ใหม่แล้ว: ${event.data.name}`);
+        } else if (event.type === 'update') {
+          setParts(prev => prev.map(p => p.id === event.data.id ? event.data : p));
+        } else if (event.type === 'delete') {
+          setParts(prev => prev.filter(p => p.id !== event.id));
+        }
+      });
+
+      socket.on('connect_error', () => {
+        if (!pollId) {
+          pollId = setInterval(fetchParts, 30000);
+        }
+      });
+      socket.on('disconnect', () => {
+        if (!pollId) {
+          pollId = setInterval(fetchParts, 30000);
+        }
+      });
+    } catch {
+      pollId = setInterval(fetchParts, 30000);
+    }
+
+    // Also start a delayed fallback in case socket never connects
+    const t = setTimeout(() => {
+      if (!pollId) {
+        pollId = setInterval(fetchParts, 30000);
       }
-
-      if (event.type === 'create') {
-        setParts(prev => [...prev, event.data]);
-        toast.success(`เพิ่มอะไหล่ใหม่แล้ว: ${event.data.name}`);
-      } else if (event.type === 'update') {
-        setParts(prev => prev.map(p => p.id === event.data.id ? event.data : p));
-      } else if (event.type === 'delete') {
-        setParts(prev => prev.filter(p => p.id !== event.id));
-      }
-    });
-
+    }, 2500);
     return () => {
-      socket.disconnect();
+      clearTimeout(t);
+      if (pollId) clearInterval(pollId);
+      if (socket) socket.disconnect();
     };
   }, [fetchParts]);
 

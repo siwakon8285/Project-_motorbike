@@ -22,6 +22,7 @@ import {
   Calendar
 } from 'lucide-react';
 import Link from 'next/link';
+import { io } from 'socket.io-client';
 
 const REQUEST_TIMEOUT = process.env.NODE_ENV === 'production' ? 60000 : 5000;
 
@@ -86,6 +87,38 @@ export default function Dashboard() {
       fetchStats();
     }
   }, [authLoading, user, fetchStats]);
+
+  useEffect(() => {
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://motorbike-backend-6cjx.onrender.com';
+    let socket: any = null;
+    let pollId: any = null;
+    try {
+      socket = io(API_URL, { path: '/socket.io', withCredentials: true });
+      socket.on('booking_completed', (event: any) => {
+        if (user?.role === 'customer' && event?.userId && String(event.userId) === String(user.id)) {
+          fetchStats();
+        } else if (user?.role !== 'customer') {
+          fetchStats();
+        }
+      });
+      socket.on('connect_error', () => {
+        if (!pollId) pollId = setInterval(fetchStats, 60000);
+      });
+      socket.on('disconnect', () => {
+        if (!pollId) pollId = setInterval(fetchStats, 60000);
+      });
+    } catch {
+      pollId = setInterval(fetchStats, 60000);
+    }
+    const t = setTimeout(() => {
+      if (!pollId) pollId = setInterval(fetchStats, 60000);
+    }, 2500);
+    return () => {
+      clearTimeout(t);
+      if (pollId) clearInterval(pollId);
+      if (socket) socket.disconnect();
+    };
+  }, [user?.id, user?.role, fetchStats]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('th-TH', {

@@ -32,6 +32,7 @@ interface ServiceHistory {
   payment_status?: string;
   payment_method?: string;
   notes: string;
+  cancel_request_note?: string;
   updated_at?: string;
   first_name?: string;
   last_name?: string;
@@ -45,6 +46,9 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
+  const [cancelTarget, setCancelTarget] = useState<{ id: number; status: string; notes: string } | null>(null);
+  const [cancelReason, setCancelReason] = useState<string>('');
+  const [submittingCancel, setSubmittingCancel] = useState<boolean>(false);
 
   const fetchHistory = useCallback(async () => {
     try {
@@ -70,7 +74,8 @@ export default function HistoryPage() {
       confirmed: 'bg-blue-100 text-blue-800',
       in_progress: 'bg-purple-100 text-purple-800',
       completed: 'bg-green-100 text-green-800',
-      cancelled: 'bg-red-100 text-red-800'
+      cancelled: 'bg-red-100 text-red-800',
+      cancel_requested: 'bg-orange-100 text-orange-800'
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
@@ -81,9 +86,67 @@ export default function HistoryPage() {
       confirmed: 'ยืนยันแล้ว',
       in_progress: 'กำลังดำเนินการ',
       completed: 'เสร็จสิ้น',
-      cancelled: 'ยกเลิก'
+      cancelled: 'ยกเลิก',
+      cancel_requested: 'รอยืนยันยกเลิก'
     };
     return texts[status] || status;
+  };
+
+  const submitCancelRequest = async () => {
+    if (!cancelTarget) return;
+    const { id, status, notes } = cancelTarget;
+    if (!cancelReason.trim()) {
+      toast.error('กรุณาระบุเหตุผลในการยกเลิก');
+      return;
+    }
+    setSubmittingCancel(true);
+    try {
+      let nextStatus: 'cancelled' | 'cancel_requested' = status === 'pending' ? 'cancelled' : 'cancel_requested';
+      let success = false;
+      let updatedStatus = status;
+      // 1) Preferred: use cancel endpoint with reason (backend supports)
+      try {
+        const res = await axios.put(`/api/bookings/${id}/cancel`, { reason: cancelReason.trim() });
+        updatedStatus = res.data?.status || nextStatus;
+        success = true;
+      } catch (e1: any) {
+        // 2) Fallback: status endpoint
+        try {
+          await axios.put(`/api/bookings/${id}/status`, { status: nextStatus });
+          updatedStatus = nextStatus;
+          success = true;
+        } catch (e2: any) {
+          // 3) Legacy fallback: append note so backend detects and notifies admin
+          const line = `คำขอยกเลิกโดยลูกค้า: ${cancelReason.trim()}`;
+          const newNotes = notes ? `${notes}\n${line}` : line;
+          try {
+            await axios.put(`/api/bookings/${id}`, { notes: newNotes });
+            updatedStatus = status; // status unchanged in this fallback
+            success = true;
+            toast.success('ส่งคำขอยกเลิกถึงแอดมินแล้ว');
+          } catch (e3: any) {
+            // 4) Last attempt: alternate path for /cancel
+            const resAlt = await axios.put(`/bookings/${id}/cancel`, { reason: cancelReason.trim() });
+            updatedStatus = resAlt.data?.status || nextStatus;
+            success = true;
+          }
+        }
+      }
+      if (success) {
+        setHistory(prev => prev.map(r => (r.id === id ? { ...r, status: updatedStatus } : r)));
+        if (updatedStatus === 'cancelled') {
+          toast.success('ยกเลิกเรียบร้อย');
+        } else if (updatedStatus === 'cancel_requested') {
+          toast.success('ส่งคำขอยกเลิกแล้ว รอแอดมินยืนยัน');
+        }
+        setCancelTarget(null);
+        setCancelReason('');
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'ส่งคำขอยกเลิกไม่สำเร็จ');
+    } finally {
+      setSubmittingCancel(false);
+    }
   };
 
   const formatCurrency = (amount: number) => {
@@ -498,6 +561,23 @@ export default function HistoryPage() {
                       </div>
 
                       <div className="ml-6">
+                        {record.cancel_request_note && (
+                          <div className="mb-3 p-3 rounded-lg border text-sm bg-red-50 border-red-100 text-red-700">
+                            <p className="font-semibold">คำขอยกเลิกโดยลูกค้า</p>
+                            <p className="mt-0.5">{record.cancel_request_note}</p>
+                          </div>
+                        )}
+                        {(user?.role === 'customer' && (record.status === 'pending' || record.status === 'confirmed')) ? (
+                          <button
+                            className="mr-2 px-3 py-2 text-sm rounded-lg bg-orange-600 text-white hover:bg-orange-700"
+                            onClick={() => {
+                              setCancelTarget({ id: record.id, status: record.status, notes: record.notes || '' });
+                              setCancelReason('');
+                            }}
+                          >
+                            ยกเลิก
+                          </button>
+                        ) : null}
                         {record.status === 'confirmed' ? (
                           <button
                             className="p-2 text-primary-600 hover:text-primary-800"
@@ -524,6 +604,47 @@ export default function HistoryPage() {
           </div>
           )}
       </div>
+      {/* Cancel Reason Modal */}
+      {cancelTarget && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-md shadow-xl">
+            <div className="p-5 border-b border-gray-100">
+              <h3 className="text-lg font-bold text-gray-900">เหตุผลในการยกเลิก</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                กรุณาระบุเหตุผลก่อนส่งคำขอยกเลิก
+              </p>
+            </div>
+            <div className="p-5 space-y-4">
+              <textarea
+                className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                rows={4}
+                placeholder="เช่น ไม่สะดวกในวันและเวลาเดิม ต้องการนัดหมายใหม่ เป็นต้น"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+              />
+            </div>
+            <div className="p-5 border-t border-gray-100 flex items-center justify-end gap-3">
+              <button
+                className="px-3 py-2 rounded-lg text-sm bg-gray-100 text-gray-700 hover:bg-gray-200"
+                onClick={() => { if (!submittingCancel) { setCancelTarget(null); setCancelReason(''); } }}
+                disabled={submittingCancel}
+              >
+                ยกเลิก
+              </button>
+              <button
+                className={`px-3 py-2 rounded-lg text-sm bg-orange-600 text-white hover:bg-orange-700 ${submittingCancel ? 'opacity-50 cursor-not-allowed' : ''}`}
+                onClick={submitCancelRequest}
+                disabled={submittingCancel}
+              >
+                {submittingCancel ? 'กำลังส่ง...' : 'ส่งคำขอยกเลิก'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </ProtectedRoute>
   );
 }
+
+// Modal Component appended in same file for simplicity
+// Render modal within component above using state

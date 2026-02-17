@@ -132,8 +132,10 @@ router.post('/', auth, upload.single('image'), [
       [name, category, description, sku, quantity, minStock || 10, costPrice, sellingPrice, supplier, compatibleModels, imageUrl]
     );
 
-    // Emit socket event
-    req.io.emit('parts_update', { type: 'create', data: newPart.rows[0] });
+    // Emit socket event (optional)
+    if (req.io && typeof req.io.emit === 'function') {
+      try { req.io.emit('parts_update', { type: 'create', data: newPart.rows[0] }); } catch {}
+    }
 
     res.json(newPart.rows[0]);
   } catch (err) {
@@ -196,8 +198,10 @@ router.put('/:id', auth, upload.single('image'), async (req, res) => {
       return res.status(404).json({ message: 'Part not found' });
     }
 
-    // Emit socket event
-    req.io.emit('parts_update', { type: 'update', data: updatedPart.rows[0] });
+    // Emit socket event (optional)
+    if (req.io && typeof req.io.emit === 'function') {
+      try { req.io.emit('parts_update', { type: 'update', data: updatedPart.rows[0] }); } catch {}
+    }
 
     res.json(updatedPart.rows[0]);
   } catch (err) {
@@ -219,8 +223,10 @@ router.delete('/:id', auth, async (req, res) => {
       return res.status(404).json({ message: 'Part not found' });
     }
 
-    // Emit socket event
-    req.io.emit('parts_update', { type: 'delete', id: parseInt(req.params.id) });
+    // Emit socket event (optional)
+    if (req.io && typeof req.io.emit === 'function') {
+      try { req.io.emit('parts_update', { type: 'delete', id: parseInt(req.params.id) }); } catch {}
+    }
 
     res.json({ message: 'Part deleted' });
   } catch (err) {
