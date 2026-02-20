@@ -8,6 +8,17 @@ import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { io } from 'socket.io-client';
 
+const computeBaseURL = () => {
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return 'http://localhost:5000';
+    }
+  }
+  return 'https://motorbike-backend-6cjx.onrender.com';
+};
+
 interface Part {
   id: number;
   name: string;
@@ -31,7 +42,7 @@ function EstimatePage() {
   const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({});
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://motorbike-backend-6cjx.onrender.com';
+  const API_URL = computeBaseURL();
 
   // Real-time updates
   useEffect(() => {

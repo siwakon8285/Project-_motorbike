@@ -8,7 +8,17 @@ import { Package, Plus, Search, Edit, Trash2, AlertTriangle, Image as ImageIcon,
 import toast from 'react-hot-toast';
 import { io } from 'socket.io-client';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://motorbike-backend-6cjx.onrender.com';
+const computeBaseURL = () => {
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return 'http://localhost:5000';
+    }
+  }
+  return 'https://motorbike-backend-6cjx.onrender.com';
+};
+const API_URL = computeBaseURL();
 
 interface Part {
   id: number;
